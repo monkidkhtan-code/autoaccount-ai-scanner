@@ -18,16 +18,17 @@ class GoogleSheetsService:
         os.makedirs(settings.storage_dir, exist_ok=True)
         if not os.path.exists(self.csv_path):
             headers = [
-                "Date", 
-                "Particulars", 
-                "Mode of Payment", 
-                "Ref No./ Invoice No.", 
-                "", # Blank Column E
-                "Amount", 
-                "", # Blank Column G
-                "", # Blank Column H
-                "Category", 
-                "Drive Receipt Link"
+                "Data Entry Log Time",  # Col A
+                "Date",                 # Col B
+                "Particulars",          # Col C
+                "Mode of Payment",      # Col D
+                "Cheque No./ Reference No./ Invoice No.", # Col E
+                "",                     # Col F (Blank)
+                "Amount",               # Col G
+                "",                     # Col H (Blank)
+                "",                     # Col I (Blank)
+                "Category",             # Col J
+                "Image Link"            # Col K
             ]
             with open(self.csv_path, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
@@ -35,53 +36,63 @@ class GoogleSheetsService:
 
     def sync_to_google_cloud(self, receipt: ReceiptData, image_bytes: Optional[bytes] = None) -> Dict[str, str]:
         """
-        Combines Merchant Name and Item Description into the 'Particulars' column
-        and syncs to Google Sheets according to the custom farm column order:
-        [Date, Particulars, Mode of Payment, Ref No./ Invoice No., '', Amount, '', '', Category, Drive Link]
+        Exact 11-column structure matching user's Google Sheet:
+        Col A: Data Entry Log Time (DD/MM/YYYY HH:MM:SS)
+        Col B: Date (DD/MM/YYYY)
+        Col C: Particulars (Merchant Name - Item Description)
+        Col D: Mode of Payment (Cash, Credit Card, TnG, ShopeePay)
+        Col E: Cheque No./ Reference No./ Invoice No.
+        Col F: [Blank]
+        Col G: Amount
+        Col H: [Blank]
+        Col I: [Blank]
+        Col J: Category (32 Farm categories)
+        Col K: Image Link (Google Drive Link)
         """
+        now = datetime.now()
+        log_time_str = now.strftime("%d/%m/%Y %H:%M:%S")
+
         # Combine Merchant Name + Item Description into Particulars
-        if receipt.item_description and receipt.item_description.strip():
-            particulars = f"{receipt.merchant_name} - {receipt.item_description.strip()}"
+        m_name = (receipt.merchant_name or "").strip()
+        i_desc = (receipt.item_description or "").strip()
+
+        if m_name and i_desc:
+            particulars = f"{m_name} - {i_desc}"
+        elif m_name:
+            particulars = m_name
+        elif i_desc:
+            particulars = i_desc
         else:
-            particulars = receipt.merchant_name
+            particulars = "Expense Receipt"
 
         try:
             date_obj = datetime.strptime(receipt.receipt_date, "%Y-%m-%d")
         except Exception:
-            date_obj = datetime.now()
+            date_obj = now
 
         year_str = date_obj.strftime("%Y")
         month_str = date_obj.strftime("%m_%B")
         formatted_date = date_obj.strftime("%d/%m/%Y")
 
-        clean_merchant = "".join(c for c in receipt.merchant_name if c.isalnum() or c in (' ', '_', '-')).strip().replace(' ', '_') or "Receipt"
-        clean_ref = "".join(c for c in receipt.reference_no if c.isalnum() or c in ('_', '-')).strip() or "NoRef"
+        clean_merchant = "".join(c for c in m_name if c.isalnum() or c in (' ', '_', '-')).strip().replace(' ', '_') or "Receipt"
+        clean_ref = "".join(c for c in (receipt.reference_no or "") if c.isalnum() or c in ('_', '-')).strip() or "NoRef"
         filename = f"{receipt.receipt_date}_{clean_merchant}_{clean_ref}.jpg"
 
         image_b64 = base64.b64encode(image_bytes).decode("utf-8") if image_bytes else ""
 
-        # Exact Row Order:
-        # Col A: Date
-        # Col B: Particulars (Merchant + Item Description combined)
-        # Col C: Mode of Payment (Cash, Credit Card, TnG, ShopeePay)
-        # Col D: Ref No./ Invoice No.
-        # Col E: [Blank]
-        # Col F: Amount
-        # Col G: [Blank]
-        # Col H: [Blank]
-        # Col I: Category (32 farm categories)
-        # Col J: Drive Receipt Link
+        # 11-column exact row mapping:
         row_data = [
-            formatted_date,
-            particulars,
-            receipt.payment_method or "Cash",
-            receipt.reference_no or "",
-            "", # Blank Column E
-            receipt.total_amount,
-            "", # Blank Column G
-            "", # Blank Column H
-            receipt.category or "Plant Inputs",
-            ""  # Column J: Filled by Apps Script
+            log_time_str,                           # Col A: Data Entry Log Time
+            formatted_date,                         # Col B: Date
+            particulars,                            # Col C: Particulars (Merchant - Item Description)
+            receipt.payment_method or "Cash",       # Col D: Mode of Payment
+            receipt.reference_no or "",             # Col E: Cheque No./ Reference No./ Invoice No.
+            "",                                     # Col F: [Blank]
+            receipt.total_amount,                   # Col G: Amount
+            "",                                     # Col H: [Blank]
+            "",                                     # Col I: [Blank]
+            receipt.category or "Upkeep of Vehicles", # Col J: Category
+            ""                                      # Col K: Image Link (filled by Apps Script)
         ]
 
         payload = {
@@ -90,12 +101,13 @@ class GoogleSheetsService:
             "filename": filename,
             "image_base64": image_b64,
             "row_data": row_data,
+            "log_time": log_time_str,
             "receipt_date": formatted_date,
             "particulars": particulars,
             "payment_method": receipt.payment_method or "Cash",
             "reference_no": receipt.reference_no or "",
             "total_amount": receipt.total_amount,
-            "category": receipt.category or "Plant Inputs"
+            "category": receipt.category or "Upkeep of Vehicles"
         }
 
         cloud_result = {"status": "local_only", "drive_link": "", "folder": f"Accounting/{year_str}/{month_str}"}
@@ -123,7 +135,7 @@ class GoogleSheetsService:
                 print(f"[GoogleSheetsService] Webhook call failed: {e}")
 
         row_data_local = row_data.copy()
-        row_data_local[9] = receipt.drive_link or ""
+        row_data_local[10] = receipt.drive_link or ""
         with open(self.csv_path, "a", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow(row_data_local)

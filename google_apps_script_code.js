@@ -2,16 +2,17 @@
  * Google Apps Script for AutoAccount AI - Farm Accounting Hub
  * 
  * Arranges columns exactly as requested:
- * Col A: Date
- * Col B: Particulars
- * Col C: Mode of Payment (Dropdown: Cash, Credit Card, TnG, ShopeePay)
- * Col D: Ref No./ Invoice No.
- * Col E: [Blank]
- * Col F: Amount
- * Col G: [Blank]
+ * Col A: Data Entry Log Time (DD/MM/YYYY HH:mm:ss)
+ * Col B: Date (DD/MM/YYYY)
+ * Col C: Particulars (Merchant Name - Item Description)
+ * Col D: Mode of Payment (Dropdown: Cash, Credit Card, TnG, ShopeePay)
+ * Col E: Cheque No./ Reference No./ Invoice No.
+ * Col F: [Blank]
+ * Col G: Amount
  * Col H: [Blank]
- * Col I: Category (Dropdown with 32 Farm Accounting Categories)
- * Col J: Drive Receipt Link
+ * Col I: [Blank]
+ * Col J: Category (Dropdown with 32 Farm Accounting Categories)
+ * Col K: Image Link (Google Drive Receipt Link)
  */
 
 var PAYMENT_MODES = [
@@ -78,49 +79,37 @@ function doPost(e) {
     // 3. Append row to Google Sheet
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     
-    // Set headers & dropdown validation if sheet is brand new
-    if (sheet.getLastRow() === 0) {
-      var headers = [
-        "Date", 
-        "Particulars", 
-        "Mode of Payment", 
-        "Ref No./ Invoice No.", 
-        "", 
-        "Amount", 
-        "", 
-        "", 
-        "Category", 
-        "Drive Receipt Link"
-      ];
-      sheet.appendRow(headers);
-      sheet.getRange(1, 1, 1, 10).setFontWeight("bold").setBackground("#e2e8f0");
-      setupDropdowns(sheet);
-    }
+    // Timestamp for Data Entry Log Time
+    var nowFormatted = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT+8", "dd/MM/yyyy HH:mm:ss");
 
     var row = data.row_data || [
-      data.receipt_date || "",
-      data.particulars || "",
-      data.payment_method || "Cash",
-      data.reference_no || "",
-      "", // Blank Column E
-      data.total_amount || 0,
-      "", // Blank Column G
-      "", // Blank Column H
-      data.category || "Plant Inputs",
-      fileUrl
+      data.log_time || nowFormatted,           // Col A: Data Entry Log Time
+      data.receipt_date || "",                 // Col B: Date
+      data.particulars || "",                  // Col C: Particulars
+      data.payment_method || "Cash",           // Col D: Mode of Payment
+      data.reference_no || "",                 // Col E: Cheque No./ Reference No./ Invoice No.
+      "",                                      // Col F: [Blank]
+      data.total_amount || 0,                  // Col G: Amount
+      "",                                      // Col H: [Blank]
+      "",                                      // Col I: [Blank]
+      data.category || "Upkeep of Vehicles",   // Col J: Category
+      fileUrl                                  // Col K: Image Link
     ];
 
-    // Put file URL into Column J (index 9)
-    if (row.length >= 10) {
-      row[9] = fileUrl;
+    // Put file URL into Column K (index 10)
+    if (row.length >= 11) {
+      row[10] = fileUrl;
     } else {
+      while (row.length < 10) {
+        row.push("");
+      }
       row.push(fileUrl);
     }
 
     sheet.appendRow(row);
     var newRowIdx = sheet.getLastRow();
 
-    // Ensure dropdown validation rule applies to new row
+    // Apply data validation dropdowns for new row
     applyRowValidation(sheet, newRowIdx);
 
     return ContentService.createTextOutput(JSON.stringify({
@@ -138,34 +127,24 @@ function doPost(e) {
   }
 }
 
-function setupDropdowns(sheet) {
-  // Apply validation for Mode of Payment (Column C: col 3)
-  var rulePayment = SpreadsheetApp.newDataValidation()
-    .requireValueInList(PAYMENT_MODES, true)
-    .setAllowInvalid(true)
-    .build();
-  sheet.getRange("C2:C500").setDataValidation(rulePayment);
-
-  // Apply validation for Category (Column I: col 9)
-  var ruleCategory = SpreadsheetApp.newDataValidation()
-    .requireValueInList(FARM_CATEGORIES, true)
-    .setAllowInvalid(true)
-    .build();
-  sheet.getRange("I2:I500").setDataValidation(ruleCategory);
-}
-
 function applyRowValidation(sheet, rowIdx) {
-  var rulePayment = SpreadsheetApp.newDataValidation()
-    .requireValueInList(PAYMENT_MODES, true)
-    .setAllowInvalid(true)
-    .build();
-  sheet.getRange(rowIdx, 3).setDataValidation(rulePayment);
+  try {
+    // Mode of Payment is Column D (col 4)
+    var rulePayment = SpreadsheetApp.newDataValidation()
+      .requireValueInList(PAYMENT_MODES, true)
+      .setAllowInvalid(true)
+      .build();
+    sheet.getRange(rowIdx, 4).setDataValidation(rulePayment);
 
-  var ruleCategory = SpreadsheetApp.newDataValidation()
-    .requireValueInList(FARM_CATEGORIES, true)
-    .setAllowInvalid(true)
-    .build();
-  sheet.getRange(rowIdx, 9).setDataValidation(ruleCategory);
+    // Category is Column J (col 10)
+    var ruleCategory = SpreadsheetApp.newDataValidation()
+      .requireValueInList(FARM_CATEGORIES, true)
+      .setAllowInvalid(true)
+      .build();
+    sheet.getRange(rowIdx, 10).setDataValidation(ruleCategory);
+  } catch (e) {
+    // Ignore validation errors if permissions differ
+  }
 }
 
 function getOrCreateFolder(parent, name) {

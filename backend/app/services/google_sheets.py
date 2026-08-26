@@ -35,11 +35,15 @@ class GoogleSheetsService:
 
     def sync_to_google_cloud(self, receipt: ReceiptData, image_bytes: Optional[bytes] = None) -> Dict[str, str]:
         """
-        Sends receipt data to Google Apps Script Webhook arranged according to the custom farm column order:
+        Combines Merchant Name and Item Description into the 'Particulars' column
+        and syncs to Google Sheets according to the custom farm column order:
         [Date, Particulars, Mode of Payment, Ref No./ Invoice No., '', Amount, '', '', Category, Drive Link]
         """
-        items_summary = "; ".join([f"{item.name} (x{item.quantity})" for item in receipt.items]) if receipt.items else ""
-        particulars = f"{receipt.merchant_name} - {items_summary}" if items_summary else receipt.merchant_name
+        # Combine Merchant Name + Item Description into Particulars
+        if receipt.item_description and receipt.item_description.strip():
+            particulars = f"{receipt.merchant_name} - {receipt.item_description.strip()}"
+        else:
+            particulars = receipt.merchant_name
 
         try:
             date_obj = datetime.strptime(receipt.receipt_date, "%Y-%m-%d")
@@ -48,7 +52,7 @@ class GoogleSheetsService:
 
         year_str = date_obj.strftime("%Y")
         month_str = date_obj.strftime("%m_%B")
-        formatted_date = date_obj.strftime("%d/%m/%Y") # DD/MM/YYYY
+        formatted_date = date_obj.strftime("%d/%m/%Y")
 
         clean_merchant = "".join(c for c in receipt.merchant_name if c.isalnum() or c in (' ', '_', '-')).strip().replace(' ', '_') or "Receipt"
         clean_ref = "".join(c for c in receipt.reference_no if c.isalnum() or c in ('_', '-')).strip() or "NoRef"
@@ -56,16 +60,16 @@ class GoogleSheetsService:
 
         image_b64 = base64.b64encode(image_bytes).decode("utf-8") if image_bytes else ""
 
-        # Exact row arrangement requested:
+        # Exact Row Order:
         # Col A: Date
-        # Col B: Particulars
-        # Col C: Mode of Payment
+        # Col B: Particulars (Merchant + Item Description combined)
+        # Col C: Mode of Payment (Cash, Credit Card, TnG, ShopeePay)
         # Col D: Ref No./ Invoice No.
         # Col E: [Blank]
         # Col F: Amount
         # Col G: [Blank]
         # Col H: [Blank]
-        # Col I: Category
+        # Col I: Category (32 farm categories)
         # Col J: Drive Receipt Link
         row_data = [
             formatted_date,
@@ -77,7 +81,7 @@ class GoogleSheetsService:
             "", # Blank Column G
             "", # Blank Column H
             receipt.category or "Plant Inputs",
-            ""  # Filled by Apps Script with Drive Link
+            ""  # Column J: Filled by Apps Script
         ]
 
         payload = {
@@ -118,7 +122,6 @@ class GoogleSheetsService:
             except Exception as e:
                 print(f"[GoogleSheetsService] Webhook call failed: {e}")
 
-        # Local CSV Backup
         row_data_local = row_data.copy()
         row_data_local[9] = receipt.drive_link or ""
         with open(self.csv_path, "a", newline="", encoding="utf-8") as f:

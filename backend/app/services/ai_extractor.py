@@ -58,8 +58,7 @@ class AIExtractor:
 
     def extract_receipt_data(self, image_bytes: bytes, api_key: Optional[str] = None) -> ReceiptData:
         """
-        Fast AI Vision extraction optimized for mobile receipts.
-        Uses lightweight payload and concise JSON schema for maximum speed.
+        Fast AI Vision extraction extracting merchant_name and item_description.
         """
         client, err_msg = self.get_client(api_key)
         
@@ -67,6 +66,7 @@ class AIExtractor:
             return ReceiptData(
                 receipt_date="",
                 merchant_name="[API Key Missing] Please enter Gemini API Key in Settings",
+                item_description="",
                 reference_no="",
                 category="Plant Inputs",
                 currency="MYR",
@@ -74,15 +74,15 @@ class AIExtractor:
                 notes="Please enter your Gemini API Key in Settings."
             )
 
-        # Optimize image size to 960px max dimension (<150KB) for near-instant upload
         optimized_bytes = ImageProcessor.optimize_for_vision(image_bytes, max_dim=960)
 
         prompt = """Extract receipt JSON:
 {
-  "merchant_name": "Store/Vendor Name",
+  "merchant_name": "Business / Store Name only",
+  "item_description": "Concise summary of items/goods purchased (e.g. Chili Fertilizer, Pesticide, Tape)",
   "receipt_date": "YYYY-MM-DD",
-  "reference_no": "Invoice/Receipt No",
-  "category": "Choose closest from: Sales of Chilies, Plant Inputs, Packing Materials, Salaries, Wages, Staff Welfare, Worker Permit, Petrol, Toll & Parking, Electricity, Water, Telephone & Internet, Upkeep of Farm, Upkeep of Farm Equipment, Upkeep of Vehicles, Insurance & Road tax, Printing & Stationery, Medical, Entertainment, License Fee, Training Fee, Professional Fee, Accounting Fee, Bank Charges, Depreciation, Farm House, Farm Equipment, Accum - Fixed Assets, Cash in Hand, Deposits & Prepayments, Accrual, Payback by worker for permit",
+  "reference_no": "Invoice / Receipt / Tax Invoice No",
+  "category": "Choose closest: Sales of Chilies, Plant Inputs, Packing Materials, Salaries, Wages, Staff Welfare, Worker Permit, Petrol, Toll & Parking, Electricity, Water, Telephone & Internet, Upkeep of Farm, Upkeep of Farm Equipment, Upkeep of Vehicles, Insurance & Road tax, Printing & Stationery, Medical, Entertainment, License Fee, Training Fee, Professional Fee, Accounting Fee, Bank Charges, Depreciation, Farm House, Farm Equipment, Accum - Fixed Assets, Cash in Hand, Deposits & Prepayments, Accrual, Payback by worker for permit",
   "currency": "MYR",
   "subtotal": 0.0,
   "tax_amount": 0.0,
@@ -104,7 +104,6 @@ Return pure JSON only."""
         last_error = None
         for model_name in candidate_models:
             try:
-                # Fast config with zero thinking overhead and strict JSON output
                 config = types.GenerateContentConfig(
                     temperature=0.0,
                     max_output_tokens=700,
@@ -139,14 +138,17 @@ Return pure JSON only."""
                 parsed = json.loads(raw_text)
                 
                 items = []
+                item_names = []
                 for item in parsed.get("items", []):
                     try:
+                        iname = str(item.get("name", "Item"))
                         items.append(ReceiptItem(
-                            name=str(item.get("name", "Item")),
+                            name=iname,
                             quantity=float(item.get("quantity", 1.0) or 1.0),
                             unit_price=float(item.get("unit_price", 0.0) or 0.0),
                             total_price=float(item.get("total_price", 0.0) or 0.0)
                         ))
+                        item_names.append(iname)
                     except Exception:
                         pass
 
@@ -177,9 +179,15 @@ Return pure JSON only."""
                 if category_val not in FARM_CATEGORIES:
                     category_val = "Plant Inputs"
 
+                # Extract item description or fallback to joined line item names
+                item_desc = str(parsed.get("item_description", "")).strip()
+                if not item_desc and item_names:
+                    item_desc = ", ".join(item_names)
+
                 return ReceiptData(
                     receipt_date=receipt_date_str,
                     merchant_name=str(parsed.get("merchant_name", "Unknown Merchant")),
+                    item_description=item_desc,
                     reference_no=str(parsed.get("reference_no", "")),
                     category=category_val,
                     currency=currency_val,
@@ -192,12 +200,13 @@ Return pure JSON only."""
                 )
             except Exception as e:
                 last_error = e
-                print(f"[AIExtractor] Model {model_name} failed: {e}. Trying next fast model...")
+                print(f"[AIExtractor] Model {model_name} failed: {e}. Trying next model...")
 
         print(f"[AIExtractor] All models failed. Last error: {last_error}")
         return ReceiptData(
             receipt_date=datetime.now().strftime("%Y-%m-%d"),
             merchant_name="AI Extraction Error",
+            item_description="",
             reference_no="",
             category="Plant Inputs",
             currency="MYR",

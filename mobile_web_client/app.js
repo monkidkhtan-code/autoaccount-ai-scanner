@@ -392,8 +392,9 @@ async function processAndExtract() {
 function populateReviewForm(receipt) {
   document.getElementById("field-date").value = receipt.receipt_date || "";
   
-  // Particulars (Merchant + items)
+  // Separate Merchant Name and Item Description
   document.getElementById("field-merchant").value = receipt.merchant_name || "";
+  document.getElementById("field-item-desc").value = receipt.item_description || "";
   document.getElementById("field-ref").value = receipt.reference_no || "";
   
   // Set Category dropdown
@@ -450,6 +451,7 @@ async function updateReceiptRecord() {
 
   currentReceiptData.receipt_date = document.getElementById("field-date").value;
   currentReceiptData.merchant_name = document.getElementById("field-merchant").value;
+  currentReceiptData.item_description = document.getElementById("field-item-desc").value;
   currentReceiptData.reference_no = document.getElementById("field-ref").value;
   currentReceiptData.category = document.getElementById("field-category").value;
   currentReceiptData.payment_method = document.getElementById("field-payment").value;
@@ -463,7 +465,7 @@ async function updateReceiptRecord() {
       body: JSON.stringify(currentReceiptData)
     });
     if (res.ok) {
-      alert("Receipt record updated & synced successfully!");
+      alert("Receipt record updated & synced to Google Sheets successfully!");
       loadReceiptsList();
     }
   } catch (e) {
@@ -496,9 +498,11 @@ function renderLedgerTable(receipts) {
   receipts.forEach((r) => {
     const tr = document.createElement("tr");
     tr.className = "hover:bg-slate-50 transition-colors";
+    const particularsCombined = r.item_description ? `${r.merchant_name} - ${r.item_description}` : r.merchant_name;
+
     tr.innerHTML = `
       <td class="px-3 py-2.5 font-medium text-slate-800">${r.receipt_date || 'N/A'}</td>
-      <td class="px-3 py-2.5 font-semibold text-slate-900">${r.merchant_name}</td>
+      <td class="px-3 py-2.5 font-semibold text-slate-900">${particularsCombined}</td>
       <td class="px-3 py-2.5"><span class="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-2xs font-semibold">${r.payment_method || 'Cash'}</span></td>
       <td class="px-3 py-2.5 text-slate-600 font-mono text-2xs">${r.reference_no || 'N/A'}</td>
       <td class="px-3 py-2.5 font-bold text-emerald-700">${r.currency || 'MYR'} ${r.total_amount.toFixed(2)}</td>

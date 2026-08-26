@@ -24,7 +24,7 @@
         <div>
           <div class="flex items-center gap-1.5">
             <h1 class="font-bold text-lg leading-tight tracking-tight">AutoAccount AI</h1>
-            <span class="text-3xs font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded text-emerald-100 border border-white/20">v1.4.0</span>
+            <span class="text-3xs font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded text-emerald-100 border border-white/20">v1.4.1</span>
           </div>
           <p class="text-xs text-emerald-100 font-medium">Smart Scanner & Farm Ledger</p>
         </div>
@@ -192,8 +192,13 @@
               <input type="date" id="field-date" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-none" />
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Particulars (Merchant / Description)</label>
-              <input type="text" id="field-merchant" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-none" />
+              <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Merchant / Store Name</label>
+              <input type="text" id="field-merchant" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-none" placeholder="e.g. Hock Poh Trading" />
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Item Description (Goods / Services)</label>
+              <input type="text" id="field-item-desc" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-none" placeholder="e.g. Chili Fertilizer, Pesticide Spray, Plastic Tape" />
+              <p class="text-3xs text-slate-400 mt-0.5 italic">Combined into "Particulars" column as: [Merchant Name] - [Item Description]</p>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Mode of Payment</label>
@@ -372,7 +377,7 @@
     <div class="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
       <p class="font-semibold text-slate-700">AutoAccount AI • Smart Scanner & Farm Ledger</p>
       <p class="flex items-center gap-2">
-        <span class="px-2.5 py-1 rounded-full bg-emerald-700 text-white font-mono font-bold text-2xs shadow-sm">Version 1.4.0-farm</span>
+        <span class="px-2.5 py-1 rounded-full bg-emerald-700 text-white font-mono font-bold text-2xs shadow-sm">Version 1.4.1-farm</span>
         <span class="text-slate-400">• 24/7 Cloud Active</span>
       </p>
     </div>

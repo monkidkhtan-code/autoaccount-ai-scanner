@@ -48,11 +48,11 @@ class AIExtractor:
 
     def get_client(self, override_api_key: Optional[str] = None):
         key = override_api_key or self.api_key or settings.gemini_api_key or os.getenv("GEMINI_API_KEY", "")
-        if not key:
+        if not key or not key.strip():
             return None, "No Gemini API Key provided"
         try:
             from google import genai
-            return genai.Client(api_key=key), None
+            return genai.Client(api_key=key.strip()), None
         except Exception as e:
             return None, str(e)
 
@@ -64,24 +64,24 @@ class AIExtractor:
         
         if not client:
             return ReceiptData(
-                receipt_date="",
-                merchant_name="[API Key Missing] Please enter Gemini API Key in Settings",
-                item_description="",
+                receipt_date=datetime.now().strftime("%Y-%m-%d"),
+                merchant_name="[API Key Required]",
+                item_description="Please enter your Gemini API Key in Settings",
                 reference_no="",
-                category="Plant Inputs",
+                category="Upkeep of Vehicles",
                 currency="MYR",
                 total_amount=0.0,
-                notes="Please enter your Gemini API Key in Settings."
+                notes="Enter your free Gemini API Key (starts with AIzaSy) in Settings."
             )
 
-        optimized_bytes = ImageProcessor.optimize_for_vision(image_bytes, max_dim=960)
+        optimized_bytes = ImageProcessor.optimize_for_vision(image_bytes, max_dim=1024)
 
         prompt = """Extract receipt JSON:
 {
-  "merchant_name": "Business / Store Name only",
-  "item_description": "Concise summary of items/goods purchased (e.g. Chili Fertilizer, Pesticide, Tape)",
+  "merchant_name": "Store / Vendor Name only",
+  "item_description": "Goods/services summary (e.g. Tyre Patching, Balancing, Fertilizer)",
   "receipt_date": "YYYY-MM-DD",
-  "reference_no": "Invoice / Receipt / Tax Invoice No",
+  "reference_no": "Invoice or Receipt number",
   "category": "Choose closest: Sales of Chilies, Plant Inputs, Packing Materials, Salaries, Wages, Staff Welfare, Worker Permit, Petrol, Toll & Parking, Electricity, Water, Telephone & Internet, Upkeep of Farm, Upkeep of Farm Equipment, Upkeep of Vehicles, Insurance & Road tax, Printing & Stationery, Medical, Entertainment, License Fee, Training Fee, Professional Fee, Accounting Fee, Bank Charges, Depreciation, Farm House, Farm Equipment, Accum - Fixed Assets, Cash in Hand, Deposits & Prepayments, Accrual, Payback by worker for permit",
   "currency": "MYR",
   "subtotal": 0.0,
@@ -90,13 +90,13 @@ class AIExtractor:
   "payment_method": "Cash or Credit Card or TnG or ShopeePay",
   "items": [{"name": "item name", "quantity": 1.0, "unit_price": 0.0, "total_price": 0.0}]
 }
-Return pure JSON only."""
+Return valid JSON only."""
 
         candidate_models = [
-            'gemini-3.5-flash-lite',
-            'gemini-3.5-flash',
-            'gemini-3.7-flash',
-            'gemini-3-flash-preview'
+            'gemini-3-flash-preview',
+            'gemini-2.5-flash',
+            'gemini-flash-latest',
+            'gemini-pro-latest'
         ]
 
         from google.genai import types
@@ -106,13 +106,9 @@ Return pure JSON only."""
             try:
                 config = types.GenerateContentConfig(
                     temperature=0.0,
-                    max_output_tokens=700,
+                    max_output_tokens=800,
                     response_mime_type='application/json'
                 )
-                try:
-                    config.thinking_config = types.ThinkingConfig(thinking_budget=0)
-                except Exception:
-                    pass
 
                 response = client.models.generate_content(
                     model=model_name,
@@ -175,11 +171,10 @@ Return pure JSON only."""
                 else:
                     pm = "Cash"
 
-                category_val = str(parsed.get("category", "Plant Inputs")).strip()
+                category_val = str(parsed.get("category", "Upkeep of Vehicles")).strip()
                 if category_val not in FARM_CATEGORIES:
                     category_val = "Plant Inputs"
 
-                # Extract item description or fallback to joined line item names
                 item_desc = str(parsed.get("item_description", "")).strip()
                 if not item_desc and item_names:
                     item_desc = ", ".join(item_names)
@@ -200,16 +195,24 @@ Return pure JSON only."""
                 )
             except Exception as e:
                 last_error = e
-                print(f"[AIExtractor] Model {model_name} failed: {e}. Trying next model...")
+                print(f"[AIExtractor] Model {model_name} failed: {e}")
 
-        print(f"[AIExtractor] All models failed. Last error: {last_error}")
+        # Check if error is authentication
+        err_str = str(last_error)
+        if "401" in err_str or "UNAUTHENTICATED" in err_str or "API_KEY_INVALID" in err_str:
+            merchant_msg = "[Invalid Gemini API Key]"
+            desc_msg = "Please enter a valid Gemini API Key (starts with AIzaSy...) in Settings"
+        else:
+            merchant_msg = "AI Extraction Error"
+            desc_msg = f"Extraction failed: {err_str[:60]}"
+
         return ReceiptData(
             receipt_date=datetime.now().strftime("%Y-%m-%d"),
-            merchant_name="AI Extraction Error",
-            item_description="",
+            merchant_name=merchant_msg,
+            item_description=desc_msg,
             reference_no="",
             category="Plant Inputs",
             currency="MYR",
             total_amount=0.0,
-            notes=f"AI Vision extraction error: {str(last_error)}"
+            notes=str(last_error)
         )

@@ -24,7 +24,7 @@
         <div>
           <div class="flex items-center gap-1.5">
             <h1 class="font-bold text-lg leading-tight tracking-tight">AutoAccount AI</h1>
-            <span class="text-3xs font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded text-emerald-100 border border-white/20">v1.4.1</span>
+            <span class="text-3xs font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded text-emerald-100 border border-white/20">v1.4.2</span>
           </div>
           <p class="text-xs text-emerald-100 font-medium">Smart Scanner & Farm Ledger</p>
         </div>
@@ -101,23 +101,23 @@
           <!-- Interactive Cropper Container -->
           <div id="image-preview-container" class="hidden flex flex-col items-center space-y-4">
             <!-- Cropped Status Badge -->
-            <div id="crop-status-badge" class="w-full flex items-center justify-between px-3 py-1.5 bg-slate-100 rounded-xl text-xs font-semibold text-slate-700 border border-slate-200">
+            <div id="crop-status-badge" class="w-full flex items-center justify-between px-3 py-2 bg-slate-100 rounded-xl text-xs font-semibold text-slate-700 border border-slate-200 shadow-sm">
               <span id="crop-status-text" class="flex items-center gap-1.5 text-slate-600">
-                <i class="fa-solid fa-crop text-emerald-600"></i> Adjust corner box & tap "Apply Crop"
+                <i class="fa-solid fa-crop text-emerald-600"></i> Drag green handles around receipt, then tap <strong>"Crop Receipt"</strong>
               </span>
-              <button type="button" onclick="applyAndSaveCrop()" id="btn-apply-crop" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow flex items-center gap-1">
-                <i class="fa-solid fa-scissors"></i> ✂️ Apply & Save Crop
+              <button type="button" onclick="applyAndSaveCrop()" id="btn-apply-crop" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow flex items-center gap-1">
+                <i class="fa-solid fa-scissors"></i> ✂️ Crop Receipt
               </button>
             </div>
 
-            <div id="cropper-wrapper" class="border border-slate-700 shadow-inner">
-              <img id="cropper-image" src="" alt="Receipt Photo" />
+            <div id="cropper-wrapper" class="border-2 border-dashed border-emerald-500 rounded-xl overflow-hidden bg-slate-950/5 shadow-inner">
+              <img id="cropper-image" src="" alt="Receipt Photo" class="max-w-full rounded-lg" />
             </div>
 
             <!-- Crop Controls Bar -->
-            <div class="flex flex-wrap items-center justify-center gap-2 w-full text-xs">
+            <div id="crop-controls-bar" class="flex flex-wrap items-center justify-center gap-2 w-full text-xs">
               <button type="button" onclick="resetFullCrop()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg border border-slate-300 flex items-center gap-1.5">
-                <i class="fa-solid fa-expand"></i> 🔄 Full Image (Uncrop)
+                <i class="fa-solid fa-expand"></i> 🔄 Full Photo (Uncrop)
               </button>
               <button type="button" onclick="rotateCropper()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg border border-slate-300 flex items-center gap-1.5">
                 <i class="fa-solid fa-rotate-right"></i> 🔁 Rotate 90°
@@ -377,7 +377,7 @@
     <div class="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
       <p class="font-semibold text-slate-700">AutoAccount AI • Smart Scanner & Farm Ledger</p>
       <p class="flex items-center gap-2">
-        <span class="px-2.5 py-1 rounded-full bg-emerald-700 text-white font-mono font-bold text-2xs shadow-sm">Version 1.4.1-farm</span>
+        <span class="px-2.5 py-1 rounded-full bg-emerald-700 text-white font-mono font-bold text-2xs shadow-sm">Version 1.4.2-farm</span>
         <span class="text-slate-400">• 24/7 Cloud Active</span>
       </p>
     </div>

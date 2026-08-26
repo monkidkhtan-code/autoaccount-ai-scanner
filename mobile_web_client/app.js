@@ -1,17 +1,14 @@
-// State
-let currentImageFile = null;
+// State Management
+let originalImageFile = null;
+let currentCroppedBlob = null;
 let cropperInstance = null;
-let currentEnhancedImageUrl = null;
 let currentFilter = "enhanced_clean";
 let currentReceiptData = null;
 let allReceipts = [];
-let userGeminiApiKey = localStorage.getItem("gemini_api_key") || "AQ.Ab8RN6JmvdDMPQgMGzMDkh0LfQ-84C9xNS1SYIgS9nhI47SffQ";
+let userGeminiApiKey = localStorage.getItem("gemini_api_key") || "";
 
 // Initialize
 document.addEventListener("DOMContentLoaded", () => {
-  if (!localStorage.getItem("gemini_api_key")) {
-    localStorage.setItem("gemini_api_key", userGeminiApiKey);
-  }
   setupEventListeners();
   updateApiStatusUI();
   loadReceiptsList();
@@ -21,14 +18,25 @@ function updateApiStatusUI() {
   const label = document.getElementById("api-status-label");
   const inputKey = document.getElementById("input-gemini-key");
 
-  if (userGeminiApiKey) {
+  if (userGeminiApiKey && userGeminiApiKey.trim().length > 0) {
     if (inputKey) inputKey.value = userGeminiApiKey;
-    if (label) label.innerText = "⚡ Gemini AI Active";
+    if (label) {
+      label.innerHTML = '<i class="fa-solid fa-bolt text-yellow-300"></i> ⚡ Gemini AI Active';
+      label.className = "text-xs font-semibold px-2.5 py-1 bg-emerald-500/20 text-emerald-200 rounded-full border border-emerald-400/30";
+    }
+  } else {
+    if (label) {
+      label.innerHTML = '<i class="fa-solid fa-key text-amber-300"></i> Set API Key';
+      label.className = "text-xs font-semibold px-2.5 py-1 bg-amber-500/20 text-amber-200 rounded-full border border-amber-400/30";
+    }
   }
 }
 
 function openApiKeyModal() {
-  document.getElementById("api-key-modal").classList.remove("hidden");
+  const modal = document.getElementById("api-key-modal");
+  const inputKey = document.getElementById("input-gemini-key");
+  if (inputKey) inputKey.value = userGeminiApiKey;
+  modal.classList.remove("hidden");
 }
 
 function closeApiKeyModal() {
@@ -95,7 +103,8 @@ function handleFileSelect(e) {
 
 function processSelectedFile(file) {
   if (!file) return;
-  currentImageFile = file;
+  originalImageFile = file;
+  currentCroppedBlob = null;
 
   const uploadPrompt = document.getElementById("upload-prompt");
   const previewContainer = document.getElementById("image-preview-container");
@@ -104,12 +113,17 @@ function processSelectedFile(file) {
   uploadPrompt.classList.add("hidden");
   previewContainer.classList.remove("hidden");
 
+  // Show cropper toolbar controls
+  document.getElementById("crop-controls-bar").classList.remove("hidden");
+  document.getElementById("btn-apply-crop").classList.remove("hidden");
+
+  updateCropStatus("adjusting");
+
   if (cropperInstance) {
     cropperInstance.destroy();
     cropperInstance = null;
   }
 
-  // Create lightweight instant blob object URL (0ms memory overhead)
   const objectUrl = URL.createObjectURL(file);
 
   cropperImg.onload = function() {
@@ -118,7 +132,7 @@ function processSelectedFile(file) {
         cropperInstance = new Cropper(cropperImg, {
           viewMode: 1,
           dragMode: 'move',
-          autoCropArea: 0.95,
+          autoCropArea: 0.92,
           responsive: true,
           restore: false,
           guides: true,
@@ -131,32 +145,53 @@ function processSelectedFile(file) {
         });
       }
     } catch (err) {
-      console.warn("Cropper init fallback:", err);
+      console.warn("Cropper init error:", err);
     }
   };
 
   cropperImg.src = objectUrl;
 }
 
-let currentCroppedBlob = null;
+function updateCropStatus(mode) {
+  const statusText = document.getElementById("crop-status-text");
+  const btnApply = document.getElementById("btn-apply-crop");
+
+  if (mode === "cropped") {
+    statusText.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-600"></i> <strong class="text-emerald-700">Receipt Cropped & Locked In!</strong>';
+    btnApply.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Re-Adjust Crop';
+    btnApply.className = "px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-xs font-bold shadow flex items-center gap-1";
+  } else {
+    statusText.innerHTML = '<i class="fa-solid fa-crop text-emerald-600"></i> Drag green handles around receipt, then tap <strong>"Crop Receipt"</strong>';
+    btnApply.innerHTML = '<i class="fa-solid fa-scissors"></i> ✂️ Crop Receipt';
+    btnApply.className = "px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow flex items-center gap-1 animate-pulse";
+  }
+}
 
 function applyAndSaveCrop() {
+  const cropperImg = document.getElementById("cropper-image");
+
+  // If already cropped, re-open cropper on original image
+  if (currentCroppedBlob && !cropperInstance) {
+    processSelectedFile(originalImageFile);
+    return;
+  }
+
   if (!cropperInstance) {
-    alert("No active crop box found.");
+    alert("Please choose a receipt photo first.");
     return;
   }
 
   try {
     const croppedCanvas = cropperInstance.getCroppedCanvas({
-      maxWidth: 1280,
-      maxHeight: 1920,
-      fillColor: '#fff',
+      maxWidth: 1200,
+      maxHeight: 1800,
+      fillColor: '#ffffff',
       imageSmoothingEnabled: true,
       imageSmoothingQuality: 'high',
     });
 
     if (!croppedCanvas) {
-      alert("Could not create cropped image.");
+      alert("Could not generate cropped image.");
       return;
     }
 
@@ -164,67 +199,53 @@ function applyAndSaveCrop() {
       if (!blob) return;
       currentCroppedBlob = blob;
       
-      // Update preview image
-      const cropperImg = document.getElementById("cropper-image");
       const croppedUrl = URL.createObjectURL(blob);
-      
-      // Destroy cropper and display confirmed cropped image
+
+      // Destroy active cropper box to show the clean cropped image directly
       if (cropperInstance) {
         cropperInstance.destroy();
         cropperInstance = null;
       }
-      
-      cropperImg.src = croppedUrl;
 
-      // Update badge
-      const statusBadge = document.getElementById("crop-status-text");
-      if (statusBadge) {
-        statusBadge.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-600"></i> <strong class="text-emerald-700">Crop Applied & Saved!</strong> Ready for Extraction.';
-      }
-      
-      const btnApply = document.getElementById("btn-apply-crop");
-      if (btnApply) {
-        btnApply.innerHTML = '<i class="fa-solid fa-check"></i> Saved';
-        btnApply.classList.replace("bg-emerald-600", "bg-slate-700");
-      }
+      cropperImg.src = croppedUrl;
+      updateCropStatus("cropped");
+
+      // Hide adjustment buttons since image is now cropped
+      document.getElementById("crop-controls-bar").classList.add("hidden");
+
     }, "image/jpeg", 0.95);
   } catch (err) {
-    console.error("Error saving crop:", err);
-    alert("Crop error: " + err.message);
+    console.error("Crop error:", err);
+    alert("Error cropping image: " + err.message);
   }
 }
 
 function resetFullCrop() {
-  currentCroppedBlob = null;
-  const cropperImg = document.getElementById("cropper-image");
-
-  if (currentImageFile) {
-    if (cropperInstance) {
-      cropperInstance.destroy();
-      cropperInstance = null;
-    }
-    const objUrl = URL.createObjectURL(currentImageFile);
-    cropperImg.src = objUrl;
-
-    const statusBadge = document.getElementById("crop-status-text");
-    if (statusBadge) {
-      statusBadge.innerHTML = '<i class="fa-solid fa-image text-slate-600"></i> Full uncropped photo active';
-    }
-
-    const btnApply = document.getElementById("btn-apply-crop");
-    if (btnApply) {
-      btnApply.innerHTML = '<i class="fa-solid fa-scissors"></i> ✂️ Apply & Save Crop';
-      btnApply.classList.replace("bg-slate-700", "bg-emerald-600");
-    }
+  if (originalImageFile) {
+    currentCroppedBlob = null;
+    processSelectedFile(originalImageFile);
+    // Expand crop box to 100%
+    setTimeout(() => {
+      if (cropperInstance) {
+        cropperInstance.setCropBoxData({
+          left: 0,
+          top: 0,
+          width: cropperInstance.getContainerData().width,
+          height: cropperInstance.getContainerData().height
+        });
+      }
+    }, 150);
   }
 }
 
 function rotateCropper() {
   if (cropperInstance) {
     cropperInstance.rotate(90);
-  } else if (currentImageFile) {
-    // If cropper wasn't active, initialize it so user can rotate
-    processSelectedFile(currentCroppedBlob || currentImageFile);
+  } else if (originalImageFile) {
+    processSelectedFile(currentCroppedBlob || originalImageFile);
+    setTimeout(() => {
+      if (cropperInstance) cropperInstance.rotate(90);
+    }, 150);
   }
 }
 
@@ -236,8 +257,8 @@ function autoDetectCropBox() {
       width: cropperInstance.getContainerData().width * 0.90,
       height: cropperInstance.getContainerData().height * 0.90
     });
-  } else if (currentImageFile) {
-    processSelectedFile(currentCroppedBlob || currentImageFile);
+  } else if (originalImageFile) {
+    processSelectedFile(originalImageFile);
   }
 }
 
@@ -254,7 +275,7 @@ function setFilter(filterMode) {
 }
 
 function retakePhoto() {
-  currentImageFile = null;
+  originalImageFile = null;
   currentCroppedBlob = null;
   if (cropperInstance) {
     cropperInstance.destroy();
@@ -269,49 +290,48 @@ function retakePhoto() {
 
 async function loadSampleReceipt() {
   const canvas = document.createElement("canvas");
-  canvas.width = 420;
-  canvas.height = 620;
+  canvas.width = 440;
+  canvas.height = 640;
   const ctx = canvas.getContext("2d");
 
   ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, 420, 620);
+  ctx.fillRect(0, 0, 440, 640);
 
   ctx.fillStyle = "#0f172a";
   ctx.font = "bold 18px Courier New, monospace";
   ctx.textAlign = "center";
-  ctx.fillText("AGRO SUPPLY TRADING", 210, 45);
+  ctx.fillText("SKG TYRE AUTOCARE SDN BHD", 220, 45);
 
   ctx.font = "11px Courier New, monospace";
-  ctx.fillText("SST NO: W10-1808-320001", 210, 65);
-  ctx.fillText("Klang, Selangor", 210, 85);
+  ctx.fillText("NO: 24, JALAN SETIA INDAH, SETIA ALAM", 220, 65);
+  ctx.fillText("TEL: 03-3358 1234", 220, 85);
 
   ctx.font = "bold 12px Courier New, monospace";
   ctx.textAlign = "left";
-  ctx.fillText("======================================", 20, 130);
-  ctx.fillText("INVOICE #: INV-2026-8812  DATE: 25/08/2026", 20, 150);
-  ctx.fillText("CASHIER: AHMAD           PAY: TnG", 20, 170);
-  ctx.fillText("======================================", 20, 190);
+  ctx.fillText("======================================", 20, 110);
+  ctx.fillText("INVOICE #: CS-2401407    DATE: 26/08/2026", 20, 130);
+  ctx.fillText("VEHICLE: PROTON EXORA    PAY: Cash", 20, 150);
+  ctx.fillText("======================================", 20, 170);
 
   ctx.font = "12px Courier New, monospace";
-  ctx.fillText("ITEM DESCRIPTION        QTY     AMOUNT", 20, 220);
-  ctx.fillText("--------------------------------------", 20, 235);
-  ctx.fillText("CHILI FERTILIZER (50KG) 2x    RM 160.00", 20, 260);
-  ctx.fillText("PESTICIDE SPRAY BOTTLE  1x    RM  45.00", 20, 285);
-  ctx.fillText("PLASTIC PACKING TAPE    4x    RM  24.00", 20, 310);
+  ctx.fillText("ITEM DESCRIPTION        QTY     AMOUNT", 20, 200);
+  ctx.fillText("--------------------------------------", 20, 215);
+  ctx.fillText("TYRE PATCHING / REPAIR  1x    RM  40.00", 20, 245);
+  ctx.fillText("WHEEL BALANCING         2x    RM  20.00", 20, 275);
 
   ctx.font = "bold 13px Courier New, monospace";
-  ctx.fillText("--------------------------------------", 20, 345);
-  ctx.fillText("TOTAL AMOUNT:                RM 229.00", 20, 375);
-  ctx.fillText("======================================", 20, 400);
+  ctx.fillText("--------------------------------------", 20, 310);
+  ctx.fillText("TOTAL AMOUNT:                RM  60.00", 20, 340);
+  ctx.fillText("======================================", 20, 365);
 
   canvas.toBlob((blob) => {
-    const sampleFile = new File([blob], "sample_farm_receipt.jpg", { type: "image/jpeg" });
+    const sampleFile = new File([blob], "sample_skg_tyre_receipt.jpg", { type: "image/jpeg" });
     processSelectedFile(sampleFile);
   }, "image/jpeg");
 }
 
 async function processAndExtract() {
-  if (!currentImageFile && !currentCroppedBlob) {
+  if (!originalImageFile && !currentCroppedBlob) {
     alert("Please capture or choose a receipt photo first.");
     return;
   }
@@ -322,8 +342,6 @@ async function processAndExtract() {
   resultCard.classList.add("hidden");
 
   const sendPayload = async (imageBlob) => {
-    currentEnhancedImageUrl = URL.createObjectURL(imageBlob);
-
     const formData = new FormData();
     formData.append("file", imageBlob, "receipt_upload.jpg");
     formData.append("filter_mode", currentFilter);
@@ -358,53 +376,49 @@ async function processAndExtract() {
     }
   };
 
-  // If crop was explicitly applied and saved
+  // 1. If crop was applied and saved
   if (currentCroppedBlob) {
     sendPayload(currentCroppedBlob);
     return;
   }
 
-  // If user didn't tap "Apply Crop" but cropper is still active on screen, grab canvas
+  // 2. If cropper is still active on screen, grab canvas directly
   if (cropperInstance) {
     try {
       const croppedCanvas = cropperInstance.getCroppedCanvas({
-        maxWidth: 1280,
-        maxHeight: 1920,
-        fillColor: '#fff',
+        maxWidth: 1200,
+        maxHeight: 1800,
+        fillColor: '#ffffff',
         imageSmoothingEnabled: true,
         imageSmoothingQuality: 'high',
       });
       if (croppedCanvas) {
         croppedCanvas.toBlob((blob) => {
-          sendPayload(blob || currentImageFile);
+          sendPayload(blob || originalImageFile);
         }, "image/jpeg", 0.95);
         return;
       }
     } catch (e) {
-      console.warn("Cropper canvas error, using direct file:", e);
+      console.warn("Cropper canvas fallback:", e);
     }
   }
 
-  // Fallback to direct file
-  sendPayload(currentImageFile);
+  // 3. Fallback to original image
+  sendPayload(originalImageFile);
 }
 
 function populateReviewForm(receipt) {
   document.getElementById("field-date").value = receipt.receipt_date || "";
-  
-  // Separate Merchant Name and Item Description
   document.getElementById("field-merchant").value = receipt.merchant_name || "";
   document.getElementById("field-item-desc").value = receipt.item_description || "";
   document.getElementById("field-ref").value = receipt.reference_no || "";
   
-  // Set Category dropdown
   const catSelect = document.getElementById("field-category");
   catSelect.value = receipt.category || "Plant Inputs";
   if (!catSelect.value) {
-    catSelect.selectedIndex = 1; // Default to Plant Inputs
+    catSelect.selectedIndex = 1;
   }
 
-  // Set Payment Mode dropdown
   const paySelect = document.getElementById("field-payment");
   paySelect.value = receipt.payment_method || "Cash";
   if (!paySelect.value) {
@@ -434,13 +448,13 @@ function populateReviewForm(receipt) {
 }
 
 function downloadImageCopy() {
-  if (!currentEnhancedImageUrl && !currentReceiptData) {
-    alert("No enhanced receipt available to download.");
+  if (!currentReceiptData) {
+    alert("No receipt available to download.");
     return;
   }
   const link = document.createElement("a");
-  link.href = currentEnhancedImageUrl || (currentReceiptData && currentReceiptData.image_url ? `/api/storage-image?path=${currentReceiptData.image_url}` : "");
-  link.download = `${currentReceiptData ? currentReceiptData.merchant_name.replace(/\s+/g, '_') : 'Receipt'}_${currentReceiptData ? currentReceiptData.receipt_date : 'scan'}.jpg`;
+  link.href = currentCroppedBlob ? URL.createObjectURL(currentCroppedBlob) : (currentReceiptData.image_url ? `/api/storage-image?path=${currentReceiptData.image_url}` : "");
+  link.download = `${currentReceiptData.merchant_name.replace(/\s+/g, '_')}_${currentReceiptData.receipt_date}.jpg`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

@@ -51,10 +51,10 @@ ai_extractor = AIExtractor()
 drive_service = GoogleDriveService()
 sheets_service = GoogleSheetsService()
 
-def background_cloud_sync(receipt_obj: ReceiptData, image_bytes: bytes):
+def background_cloud_sync(receipt_obj: ReceiptData, image_bytes: bytes, webhook_url: Optional[str] = None):
     """Asynchronous background sync to Google Drive & Google Sheet"""
     try:
-        sheets_service.sync_to_google_cloud(receipt_obj, image_bytes=image_bytes)
+        sheets_service.sync_to_google_cloud(receipt_obj, image_bytes=image_bytes, webhook_url_override=webhook_url)
         receipt_obj.status = "Synced Live to Google Sheet & Drive"
         save_receipts()
     except Exception as e:
@@ -98,26 +98,30 @@ async def scan_and_extract(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     filter_mode: str = Form("enhanced_clean"),
-    auto_crop: bool = Form(False), # If client already cropped, auto_crop can be False
+    auto_crop: bool = Form(False),
     api_key: Optional[str] = Form(None),
+    company_name: Optional[str] = Form(None),
+    webhook_url: Optional[str] = Form(None),
     auto_sync: bool = Form(True)
 ):
     try:
         image_bytes = await file.read()
         
-        # 1. Enhance and optionally auto-crop
+        # 1. Enhance image using selected visual filter
         enhanced_bytes = ImageProcessor.enhance_receipt(
             image_bytes, 
             filter_mode=filter_mode, 
             auto_crop=auto_crop
         )
         
-        # 2. Extract Data using fast Gemini AI Vision
+        # 2. Extract Data using Gemini AI Vision
         extracted_data = ai_extractor.extract_receipt_data(
             enhanced_bytes, 
             api_key=api_key
         )
         extracted_data.id = f"REC-{uuid.uuid4().hex[:6].upper()}"
+        if company_name:
+            extracted_data.company_name = company_name
 
         # 3. Organize in Local Storage
         drive_info = drive_service.save_and_organize_receipt(
@@ -132,13 +136,14 @@ async def scan_and_extract(
         extracted_data.drive_folder = drive_info["drive_folder"]
         extracted_data.status = "Extracted & Saving..."
 
-        # Persist locally immediately
+        # Persist locally
         receipts_db.insert(0, extracted_data)
         save_receipts()
 
-        # 4. Schedule Google Cloud & Drive sync in background (non-blocking for ultra-fast UI)
-        if auto_sync and settings.google_apps_script_url:
-            background_tasks.add_task(background_cloud_sync, extracted_data, enhanced_bytes)
+        # 4. Schedule Google Cloud & Drive sync in background to target company webhook
+        target_hook = (webhook_url or settings.google_apps_script_url or "").strip()
+        if auto_sync and target_hook:
+            background_tasks.add_task(background_cloud_sync, extracted_data, enhanced_bytes, target_hook)
         else:
             extracted_data.status = "Saved Locally"
 

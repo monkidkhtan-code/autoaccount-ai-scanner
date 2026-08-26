@@ -13,6 +13,7 @@ class ReceiptData(BaseModel):
     receipt_date: str = Field(default="", description="Receipt/Invoice date in YYYY-MM-DD format")
     merchant_name: str = Field(default="", description="Name of the store, vendor, or merchant")
     item_description: Optional[str] = Field(default="", description="Summary description of purchased items or services")
+    company_name: Optional[str] = Field(default="Default Entity", description="Active company or person profile name")
     reference_no: str = Field(default="", description="Invoice number, receipt number, or tax invoice ID")
     category: str = Field(default="Plant Inputs", description="Farm accounting category")
     currency: str = Field(default="MYR", description="Currency code (MYR, SGD, USD, etc.)")

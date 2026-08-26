@@ -34,7 +34,12 @@ class GoogleSheetsService:
                 writer = csv.writer(f)
                 writer.writerow(headers)
 
-    def sync_to_google_cloud(self, receipt: ReceiptData, image_bytes: Optional[bytes] = None) -> Dict[str, str]:
+    def sync_to_google_cloud(
+        self, 
+        receipt: ReceiptData, 
+        image_bytes: Optional[bytes] = None,
+        webhook_url_override: Optional[str] = None
+    ) -> Dict[str, str]:
         """
         Exact 11-column structure matching user's Google Sheet:
         Col A: Data Entry Log Time (DD/MM/YYYY HH:MM:SS)
@@ -49,6 +54,7 @@ class GoogleSheetsService:
         Col J: Category (32 Farm categories)
         Col K: Image Link (Google Drive Link)
         """
+        target_webhook = (webhook_url_override or self.webhook_url or "").strip()
         now = datetime.now()
         log_time_str = now.strftime("%d/%m/%Y %H:%M:%S")
 
@@ -112,10 +118,10 @@ class GoogleSheetsService:
 
         cloud_result = {"status": "local_only", "drive_link": "", "folder": f"Accounting/{year_str}/{month_str}"}
 
-        if self.webhook_url:
+        if target_webhook:
             try:
                 res = requests.post(
-                    self.webhook_url,
+                    target_webhook,
                     json=payload,
                     headers={"Content-Type": "application/json"},
                     timeout=25

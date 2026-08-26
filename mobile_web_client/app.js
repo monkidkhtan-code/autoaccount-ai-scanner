@@ -7,12 +7,207 @@ let currentReceiptData = null;
 let allReceipts = [];
 let userGeminiApiKey = localStorage.getItem("gemini_api_key") || "";
 
+// Multi-Company State
+const DEFAULT_COMPANIES = [
+  {
+    id: "comp_default",
+    name: "KH Agri Farm (Chili Project)",
+    webhook_url: "https://script.google.com/macros/s/AKfycby7cw5dc1mHY9SEiB14SIyuzmCF0Br26MxKLRGqDTWLU7kG98sJtuZJRgzHVT1surfK/exec"
+  }
+];
+
+let companyProfiles = JSON.parse(localStorage.getItem("company_profiles") || "null") || DEFAULT_COMPANIES;
+let activeCompanyId = localStorage.getItem("active_company_id") || companyProfiles[0].id;
+
 // Initialize
 document.addEventListener("DOMContentLoaded", () => {
   setupEventListeners();
   updateApiStatusUI();
+  initCompanyProfiles();
   loadReceiptsList();
 });
+
+// --- MULTI-COMPANY PROFILE FUNCTIONS ---
+
+function initCompanyProfiles() {
+  if (!companyProfiles || companyProfiles.length === 0) {
+    companyProfiles = DEFAULT_COMPANIES;
+  }
+  
+  // Ensure active company exists
+  const exists = companyProfiles.find((c) => c.id === activeCompanyId);
+  if (!exists) {
+    activeCompanyId = companyProfiles[0].id;
+  }
+
+  saveCompanyProfiles();
+  renderCompanySelectDropdown();
+  updateActiveCompanyUI();
+}
+
+function saveCompanyProfiles() {
+  localStorage.setItem("company_profiles", JSON.stringify(companyProfiles));
+  localStorage.setItem("active_company_id", activeCompanyId);
+}
+
+function getActiveCompany() {
+  return companyProfiles.find((c) => c.id === activeCompanyId) || companyProfiles[0];
+}
+
+function renderCompanySelectDropdown() {
+  const select = document.getElementById("header-company-select");
+  if (!select) return;
+
+  select.innerHTML = "";
+  companyProfiles.forEach((comp) => {
+    const opt = document.createElement("option");
+    opt.value = comp.id;
+    opt.textContent = comp.name;
+    if (comp.id === activeCompanyId) {
+      opt.selected = true;
+    }
+    select.appendChild(opt);
+  });
+}
+
+function updateActiveCompanyUI() {
+  const activeComp = getActiveCompany();
+  const badge = document.getElementById("active-company-badge");
+  const formBadge = document.getElementById("badge-company-name");
+
+  if (badge) badge.innerText = `🏢 Entity: ${activeComp.name}`;
+  if (formBadge) formBadge.innerText = `🏢 ${activeComp.name}`;
+}
+
+function onCompanySelectChange(newId) {
+  activeCompanyId = newId;
+  saveCompanyProfiles();
+  updateActiveCompanyUI();
+  renderCompanyProfilesList();
+}
+
+function openCompanyModal() {
+  renderCompanyProfilesList();
+  document.getElementById("company-modal").classList.remove("hidden");
+}
+
+function closeCompanyModal() {
+  document.getElementById("company-modal").classList.add("hidden");
+}
+
+function renderCompanyProfilesList() {
+  const list = document.getElementById("company-profiles-list");
+  if (!list) return;
+
+  list.innerHTML = "";
+  companyProfiles.forEach((comp, idx) => {
+    const isActive = comp.id === activeCompanyId;
+    const card = document.createElement("div");
+    card.className = `p-3 rounded-xl border transition-all ${
+      isActive 
+        ? "bg-sky-50/80 border-sky-400 shadow-sm" 
+        : "bg-white border-slate-200 hover:border-slate-300"
+    }`;
+
+    card.innerHTML = `
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2">
+            <h4 class="font-bold text-xs text-slate-800 truncate">${comp.name}</h4>
+            ${isActive ? '<span class="px-2 py-0.5 rounded-full text-3xs font-bold bg-sky-600 text-white">Active</span>' : ''}
+          </div>
+          <p class="text-3xs text-slate-500 font-mono truncate mt-0.5">${comp.webhook_url ? comp.webhook_url : '<span class="text-amber-600 italic">No Webhook URL (Local Only)</span>'}</p>
+        </div>
+
+        <div class="flex items-center gap-1.5 shrink-0">
+          ${!isActive ? `<button type="button" onclick="setActiveCompany('${comp.id}')" class="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-2xs font-bold">Select</button>` : ''}
+          <button type="button" onclick="editCompanyProfile('${comp.id}')" class="p-1.5 text-slate-500 hover:text-slate-700 text-xs" title="Edit"><i class="fa-solid fa-pen-to-square"></i></button>
+          ${companyProfiles.length > 1 ? `<button type="button" onclick="deleteCompanyProfile('${comp.id}')" class="p-1.5 text-red-500 hover:text-red-700 text-xs" title="Delete"><i class="fa-solid fa-trash"></i></button>` : ''}
+        </div>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+function setActiveCompany(id) {
+  activeCompanyId = id;
+  saveCompanyProfiles();
+  renderCompanySelectDropdown();
+  updateActiveCompanyUI();
+  renderCompanyProfilesList();
+}
+
+function addNewCompanyProfile() {
+  const nameInput = document.getElementById("new-company-name");
+  const webhookInput = document.getElementById("new-company-webhook");
+
+  const name = nameInput.value.trim();
+  const webhook = webhookInput.value.trim();
+
+  if (!name) {
+    alert("Please enter a company or person name.");
+    return;
+  }
+
+  const newCompany = {
+    id: `comp_${Date.now()}`,
+    name: name,
+    webhook_url: webhook
+  };
+
+  companyProfiles.push(newCompany);
+  activeCompanyId = newCompany.id;
+  saveCompanyProfiles();
+
+  nameInput.value = "";
+  webhookInput.value = "";
+
+  renderCompanySelectDropdown();
+  updateActiveCompanyUI();
+  renderCompanyProfilesList();
+  alert(`Added and switched to "${name}"!`);
+}
+
+function editCompanyProfile(id) {
+  const comp = companyProfiles.find((c) => c.id === id);
+  if (!comp) return;
+
+  const newName = prompt("Edit Company/Entity Name:", comp.name);
+  if (newName === null) return;
+
+  const newWebhook = prompt("Edit Google Apps Script Webhook URL:", comp.webhook_url);
+  if (newWebhook === null) return;
+
+  comp.name = newName.trim() || comp.name;
+  comp.webhook_url = newWebhook.trim();
+
+  saveCompanyProfiles();
+  renderCompanySelectDropdown();
+  updateActiveCompanyUI();
+  renderCompanyProfilesList();
+}
+
+function deleteCompanyProfile(id) {
+  if (companyProfiles.length <= 1) {
+    alert("You must have at least one active company profile.");
+    return;
+  }
+
+  if (!confirm("Are you sure you want to delete this company profile?")) return;
+
+  companyProfiles = companyProfiles.filter((c) => c.id !== id);
+  if (activeCompanyId === id) {
+    activeCompanyId = companyProfiles[0].id;
+  }
+
+  saveCompanyProfiles();
+  renderCompanySelectDropdown();
+  updateActiveCompanyUI();
+  renderCompanyProfilesList();
+}
+
+// --- GEMINI API KEY FUNCTIONS ---
 
 function updateApiStatusUI() {
   const label = document.getElementById("api-status-label");
@@ -21,13 +216,7 @@ function updateApiStatusUI() {
   if (userGeminiApiKey && userGeminiApiKey.trim().length > 0) {
     if (inputKey) inputKey.value = userGeminiApiKey;
     if (label) {
-      label.innerHTML = '<i class="fa-solid fa-bolt text-yellow-300"></i> ⚡ Gemini AI Active';
-      label.className = "text-xs font-semibold px-2.5 py-1 bg-emerald-500/20 text-emerald-200 rounded-full border border-emerald-400/30";
-    }
-  } else {
-    if (label) {
-      label.innerHTML = '<i class="fa-solid fa-key text-amber-300"></i> Set API Key';
-      label.className = "text-xs font-semibold px-2.5 py-1 bg-amber-500/20 text-amber-200 rounded-full border border-amber-400/30";
+      label.innerText = "AI Active";
     }
   }
 }
@@ -62,6 +251,8 @@ async function saveApiKey() {
   closeApiKeyModal();
   alert("Gemini AI API Key saved!");
 }
+
+// --- FILE SELECTION & CROPPER ---
 
 function setupEventListeners() {
   const cameraInput = document.getElementById("camera-input");
@@ -113,7 +304,6 @@ function processSelectedFile(file) {
   uploadPrompt.classList.add("hidden");
   previewContainer.classList.remove("hidden");
 
-  // Show cropper toolbar controls
   document.getElementById("crop-controls-bar").classList.remove("hidden");
   document.getElementById("btn-apply-crop").classList.remove("hidden");
 
@@ -150,6 +340,7 @@ function processSelectedFile(file) {
   };
 
   cropperImg.src = objectUrl;
+  applyLiveImageFilter();
 }
 
 function updateCropStatus(mode) {
@@ -170,7 +361,6 @@ function updateCropStatus(mode) {
 function applyAndSaveCrop() {
   const cropperImg = document.getElementById("cropper-image");
 
-  // If already cropped, re-open cropper on original image
   if (currentCroppedBlob && !cropperInstance) {
     processSelectedFile(originalImageFile);
     return;
@@ -201,7 +391,6 @@ function applyAndSaveCrop() {
       
       const croppedUrl = URL.createObjectURL(blob);
 
-      // Destroy active cropper box to show the clean cropped image directly
       if (cropperInstance) {
         cropperInstance.destroy();
         cropperInstance = null;
@@ -209,9 +398,8 @@ function applyAndSaveCrop() {
 
       cropperImg.src = croppedUrl;
       updateCropStatus("cropped");
-
-      // Hide adjustment buttons since image is now cropped
       document.getElementById("crop-controls-bar").classList.add("hidden");
+      applyLiveImageFilter();
 
     }, "image/jpeg", 0.95);
   } catch (err) {
@@ -224,7 +412,6 @@ function resetFullCrop() {
   if (originalImageFile) {
     currentCroppedBlob = null;
     processSelectedFile(originalImageFile);
-    // Expand crop box to 100%
     setTimeout(() => {
       if (cropperInstance) {
         cropperInstance.setCropBoxData({
@@ -262,16 +449,47 @@ function autoDetectCropBox() {
   }
 }
 
+// --- LIVE IMAGE ENHANCEMENT FILTERS ---
+
 function setFilter(filterMode) {
   currentFilter = filterMode;
+
+  const filterNames = {
+    "enhanced_clean": "Smart Clean",
+    "bw_enhanced": "B&W High-Contrast",
+    "color_boost": "Color Boost",
+    "original": "Original"
+  };
+
+  const nameLabel = document.getElementById("filter-active-name");
+  if (nameLabel) nameLabel.innerText = filterNames[filterMode] || "Custom";
+
   document.querySelectorAll(".filter-btn").forEach((btn) => {
     if (btn.dataset.filter === filterMode) {
       btn.classList.add("active-filter", "bg-emerald-50", "border-emerald-500", "text-emerald-700");
+      btn.classList.remove("bg-white");
     } else {
       btn.classList.remove("active-filter", "bg-emerald-50", "border-emerald-500", "text-emerald-700");
       btn.classList.add("bg-white");
     }
   });
+
+  applyLiveImageFilter();
+}
+
+function applyLiveImageFilter() {
+  const cropperImg = document.getElementById("cropper-image");
+  if (!cropperImg) return;
+
+  // Remove existing filter classes
+  cropperImg.classList.remove(
+    "filter-preview-original",
+    "filter-preview-enhanced_clean",
+    "filter-preview-bw_enhanced",
+    "filter-preview-color_boost"
+  );
+
+  cropperImg.classList.add(`filter-preview-${currentFilter}`);
 }
 
 function retakePhoto() {
@@ -330,11 +548,15 @@ async function loadSampleReceipt() {
   }, "image/jpeg");
 }
 
+// --- SCAN AND EXTRACTION WITH TARGET COMPANY WEBHOOK ---
+
 async function processAndExtract() {
   if (!originalImageFile && !currentCroppedBlob) {
     alert("Please capture or choose a receipt photo first.");
     return;
   }
+
+  const activeComp = getActiveCompany();
 
   const loadingCard = document.getElementById("loading-card");
   const resultCard = document.getElementById("result-card");
@@ -347,6 +569,8 @@ async function processAndExtract() {
     formData.append("filter_mode", currentFilter);
     formData.append("auto_crop", "false");
     formData.append("api_key", userGeminiApiKey || "");
+    formData.append("company_name", activeComp.name || "");
+    formData.append("webhook_url", activeComp.webhook_url || "");
     formData.append("auto_sync", "true");
 
     try {
@@ -428,6 +652,8 @@ function populateReviewForm(receipt) {
   document.getElementById("field-currency").value = receipt.currency || "MYR";
   document.getElementById("field-amount").value = receipt.total_amount || 0;
 
+  const activeComp = getActiveCompany();
+  document.getElementById("badge-company-name").innerText = `🏢 ${receipt.company_name || activeComp.name}`;
   document.getElementById("badge-drive-folder").innerText = receipt.drive_folder || "Google Drive > Receipts";
 
   const itemsContainer = document.getElementById("items-container");
@@ -463,6 +689,8 @@ function downloadImageCopy() {
 async function updateReceiptRecord() {
   if (!currentReceiptData) return;
 
+  const activeComp = getActiveCompany();
+
   currentReceiptData.receipt_date = document.getElementById("field-date").value;
   currentReceiptData.merchant_name = document.getElementById("field-merchant").value;
   currentReceiptData.item_description = document.getElementById("field-item-desc").value;
@@ -471,6 +699,7 @@ async function updateReceiptRecord() {
   currentReceiptData.payment_method = document.getElementById("field-payment").value;
   currentReceiptData.currency = document.getElementById("field-currency").value;
   currentReceiptData.total_amount = parseFloat(document.getElementById("field-amount").value) || 0;
+  currentReceiptData.company_name = activeComp.name;
 
   try {
     const res = await fetch("/api/update-receipt", {
@@ -479,7 +708,7 @@ async function updateReceiptRecord() {
       body: JSON.stringify(currentReceiptData)
     });
     if (res.ok) {
-      alert("Receipt record updated & synced to Google Sheets successfully!");
+      alert(`Receipt updated & synced to ${activeComp.name} Google Sheet!`);
       loadReceiptsList();
     }
   } catch (e) {
@@ -505,7 +734,7 @@ function renderLedgerTable(receipts) {
   tbody.innerHTML = "";
 
   if (receipts.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400 italic">No farm receipts scanned yet. Tap "Scan & Extract" to start.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center py-6 text-slate-400 italic">No farm receipts scanned yet. Tap "Scan & Extract" to start.</td></tr>`;
     return;
   }
 
@@ -513,14 +742,17 @@ function renderLedgerTable(receipts) {
     const tr = document.createElement("tr");
     tr.className = "hover:bg-slate-50 transition-colors";
     const particularsCombined = r.item_description ? `${r.merchant_name} - ${r.item_description}` : r.merchant_name;
+    const logTime = r.created_at ? new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-';
 
     tr.innerHTML = `
+      <td class="px-3 py-2.5 font-mono text-2xs text-slate-500">${logTime}</td>
       <td class="px-3 py-2.5 font-medium text-slate-800">${r.receipt_date || 'N/A'}</td>
       <td class="px-3 py-2.5 font-semibold text-slate-900">${particularsCombined}</td>
       <td class="px-3 py-2.5"><span class="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-2xs font-semibold">${r.payment_method || 'Cash'}</span></td>
       <td class="px-3 py-2.5 text-slate-600 font-mono text-2xs">${r.reference_no || 'N/A'}</td>
       <td class="px-3 py-2.5 font-bold text-emerald-700">${r.currency || 'MYR'} ${r.total_amount.toFixed(2)}</td>
       <td class="px-3 py-2.5"><span class="px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 text-2xs font-semibold">${r.category}</span></td>
+      <td class="px-3 py-2.5"><span class="px-2 py-0.5 rounded-md bg-sky-50 text-sky-800 text-2xs font-semibold">${r.company_name || 'KH Agri Farm'}</span></td>
       <td class="px-3 py-2.5"><span class="px-2 py-0.5 rounded-md bg-teal-50 text-teal-700 text-2xs font-semibold">${r.status || 'Synced'}</span></td>
     `;
     tbody.appendChild(tr);
@@ -544,7 +776,7 @@ function renderCompileSelector(receipts) {
         <input type="checkbox" class="compile-checkbox rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4" value="${r.id}" checked />
         <div>
           <p class="font-bold text-xs text-slate-800">${r.merchant_name} <span class="font-normal text-slate-500">(${r.receipt_date})</span></p>
-          <p class="text-2xs text-slate-500">Ref: ${r.reference_no || 'N/A'} | Mode: ${r.payment_method || 'Cash'} | Cat: ${r.category}</p>
+          <p class="text-2xs text-slate-500">Ref: ${r.reference_no || 'N/A'} | Mode: ${r.payment_method || 'Cash'} | Entity: ${r.company_name || 'KH Agri Farm'}</p>
         </div>
       </div>
       <div class="text-right">

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AutoAccount AI - Multi-Company Scanner & Farm Accounting Hub</title>
+  <title>AutoAccount AI - Multi-Company Scanner & Expense Ledger</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -32,9 +32,9 @@
           <div>
             <div class="flex items-center gap-1.5">
               <h1 class="font-bold text-base leading-tight tracking-tight">AutoAccount AI</h1>
-              <span class="text-3xs font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded text-emerald-100 border border-white/20">v1.5.0</span>
+              <span class="text-3xs font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded text-emerald-100 border border-white/20">v1.5.1</span>
             </div>
-            <p class="text-2xs text-emerald-100 font-medium">Multi-Company Scanner & Farm Ledger</p>
+            <p class="text-2xs text-emerald-100 font-medium">Multi-Company Scanner & Expense Ledger</p>
           </div>
         </div>
 
@@ -70,20 +70,23 @@
   </header>
 
   <!-- Main Container -->
-  <main class="max-w-5xl mx-auto px-4 py-6 w-full flex-1">
+  <main class="max-w-5xl mx-auto px-4 py-5 w-full flex-1">
     
-    <!-- Tab Navigation -->
-    <div class="flex rounded-xl bg-slate-200 p-1 mb-6 shadow-inner">
-      <button id="tab-scan-btn" onclick="switchTab('scan')" class="flex-1 py-2.5 rounded-lg font-semibold text-sm transition-all shadow bg-white text-emerald-800 flex items-center justify-center gap-2">
-        <i class="fa-solid fa-camera"></i> Scan & Extract
+    <!-- Clean Modern Segment Navigation Bar -->
+    <nav class="grid grid-cols-3 gap-1.5 bg-slate-200/90 p-1.5 rounded-2xl shadow-inner mb-6">
+      <button id="tab-scan-btn" onclick="switchTab('scan')" class="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 px-1 sm:px-3 rounded-xl font-bold text-xs transition-all shadow bg-white text-emerald-800">
+        <i class="fa-solid fa-camera text-sm sm:text-base text-emerald-600"></i>
+        <span class="truncate">Scan & Extract</span>
       </button>
-      <button id="tab-compile-btn" onclick="switchTab('compile')" class="flex-1 py-2.5 rounded-lg font-semibold text-sm transition-all text-slate-600 hover:text-slate-900 flex items-center justify-center gap-2">
-        <i class="fa-solid fa-file-pdf"></i> A4 Compilation Studio
+      <button id="tab-compile-btn" onclick="switchTab('compile')" class="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 px-1 sm:px-3 rounded-xl font-bold text-xs transition-all text-slate-600 hover:text-slate-900">
+        <i class="fa-solid fa-file-pdf text-sm sm:text-base text-red-500"></i>
+        <span class="truncate">A4 Studio</span>
       </button>
-      <button id="tab-ledger-btn" onclick="switchTab('ledger')" class="flex-1 py-2.5 rounded-lg font-semibold text-sm transition-all text-slate-600 hover:text-slate-900 flex items-center justify-center gap-2">
-        <i class="fa-solid fa-table"></i> Farm Sheets Ledger
+      <button id="tab-ledger-btn" onclick="switchTab('ledger')" class="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 px-1 sm:px-3 rounded-xl font-bold text-xs transition-all text-slate-600 hover:text-slate-900">
+        <i class="fa-solid fa-table-cells text-sm sm:text-base text-teal-600"></i>
+        <span class="truncate">Expense Ledger</span>
       </button>
-    </div>
+    </nav>
 
     <!-- TAB 1: SCAN & EXTRACT -->
     <section id="tab-scan" class="space-y-6">
@@ -94,7 +97,7 @@
           </h2>
           <div class="flex items-center gap-2">
             <span id="active-company-badge" class="text-2xs font-bold px-2.5 py-1 bg-sky-50 text-sky-700 rounded-full border border-sky-200">
-              🏢 Entity: KH Agri Farm
+              🏢 Entity: Active Account
             </span>
             <span class="text-2xs font-semibold px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-200">
               ⚡ ~1.5s AI Vision
@@ -203,7 +206,7 @@
         <div class="w-14 h-14 mx-auto border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
         <div>
           <h3 class="font-bold text-slate-800 text-base" id="loading-title">Extracting Details with Gemini Vision AI...</h3>
-          <p class="text-xs text-slate-500 mt-1" id="loading-desc">Fast farm accounting analysis in progress...</p>
+          <p class="text-xs text-slate-500 mt-1" id="loading-desc">Fast accounting analysis in progress...</p>
         </div>
       </div>
 
@@ -215,13 +218,13 @@
               <i class="fa-solid fa-check"></i>
             </span>
             <div>
-              <h3 class="font-bold text-slate-800 text-base">Extracted Farm Accounting Details</h3>
+              <h3 class="font-bold text-slate-800 text-base">Extracted Accounting Details</h3>
               <p class="text-xs text-slate-500">Live synced to Google Drive & Google Sheet</p>
             </div>
           </div>
           <div class="flex items-center gap-2">
             <span id="badge-company-name" class="text-xs font-semibold px-2.5 py-1 bg-sky-50 text-sky-800 rounded-full border border-sky-200">
-              🏢 KH Agri Farm
+              🏢 Entity Profile
             </span>
             <span id="badge-drive-folder" class="text-xs font-semibold px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-200">
               Drive: Receipts/2026/08_August
@@ -241,7 +244,7 @@
             </div>
             <div class="sm:col-span-2">
               <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Item Description (Goods / Services)</label>
-              <input type="text" id="field-item-desc" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-none" placeholder="e.g. Chili Fertilizer, Pesticide Spray, Plastic Tape" />
+              <input type="text" id="field-item-desc" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-none" placeholder="e.g. Fertilizer, Hardware Tools, Office Paper" />
               <p class="text-3xs text-slate-400 mt-0.5 italic">Combined into "Particulars" column as: [Merchant Name] - [Item Description]</p>
             </div>
             <div>
@@ -251,6 +254,7 @@
                 <option value="Credit Card">Credit Card</option>
                 <option value="TnG">TnG</option>
                 <option value="ShopeePay">ShopeePay</option>
+                <option value="Bank Transfer">Bank Transfer</option>
               </select>
             </div>
             <div>
@@ -267,38 +271,7 @@
             <div>
               <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Category</label>
               <select id="field-category" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white font-medium">
-                <option>Sales of Chilies</option>
-                <option>Plant Inputs</option>
-                <option>Packing Materials</option>
-                <option>Salaries</option>
-                <option>Wages</option>
-                <option>Staff Welfare</option>
-                <option>Worker Permit</option>
-                <option>Petrol</option>
-                <option>Toll & Parking</option>
-                <option>Electricity</option>
-                <option>Water</option>
-                <option>Telephone & Internet</option>
-                <option>Upkeep of Farm</option>
-                <option>Upkeep of Farm Equipment</option>
-                <option>Upkeep of Vehicles</option>
-                <option>Insurance & Road tax</option>
-                <option>Printing & Stationery</option>
-                <option>Medical</option>
-                <option>Entertainment</option>
-                <option>License Fee</option>
-                <option>Training Fee</option>
-                <option>Professional Fee</option>
-                <option>Accounting Fee</option>
-                <option>Bank Charges</option>
-                <option>Depreciation</option>
-                <option>Farm House</option>
-                <option>Farm Equipment</option>
-                <option>Accum - Fixed Assets</option>
-                <option>Cash in Hand</option>
-                <option>Deposits & Prepayments</option>
-                <option>Accrual</option>
-                <option>Payback by worker for permit</option>
+                <!-- Populated dynamically with comprehensive categories -->
               </select>
             </div>
           </div>
@@ -333,7 +306,7 @@
             <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
               <i class="fa-solid fa-file-pdf text-red-500"></i> A4 Multi-Receipt Compilation Studio
             </h2>
-            <p class="text-xs text-slate-500">Pack 2 or 3 receipts onto standard A4 paper with printed data headers for hardcopy audit.</p>
+            <p class="text-xs text-slate-500">Pack 2 or 3 receipts onto standard A4 paper with printed data headers for audit & accounting claims.</p>
           </div>
           <button type="button" onclick="generateCompiledPDF()" class="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-2 justify-center">
             <i class="fa-solid fa-print"></i> Generate & Download A4 PDF
@@ -344,13 +317,13 @@
           <div>
             <label class="block font-bold text-slate-700 mb-1">Layout Mode</label>
             <select id="compile-layout" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium">
-              <option value="2_per_page" selected>2 Receipts per A4 Page (Standard/Long)</option>
+              <option value="2_per_page" selected>2 Receipts per A4 Page (Standard / Long)</option>
               <option value="3_per_page">3 Receipts per A4 Page (Compact Chits)</option>
             </select>
           </div>
           <div>
             <label class="block font-bold text-slate-700 mb-1">Document Title</label>
-            <input type="text" id="compile-title" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium" value="Farm Expense & Receipts Audit Sheet" />
+            <input type="text" id="compile-title" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium" value="Expense Claim & Receipts Audit Sheet" />
           </div>
           <div>
             <label class="block font-bold text-slate-700 mb-1">Batch Selection</label>
@@ -362,7 +335,10 @@
         </div>
 
         <div>
-          <h3 class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Select Receipts to Include:</h3>
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xs font-bold text-slate-600 uppercase tracking-wider">Select Scanned Receipts to Include:</h3>
+            <span id="compile-count-badge" class="text-2xs font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md">0 Receipts</span>
+          </div>
           <div id="compile-receipt-list" class="space-y-2 max-h-96 overflow-y-auto pr-1"></div>
         </div>
 
@@ -383,31 +359,36 @@
     <!-- TAB 3: SHEETS LEDGER -->
     <section id="tab-ledger" class="hidden space-y-6">
       <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
-        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
           <div>
             <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
-              <i class="fa-solid fa-table-cells text-emerald-600"></i> Farm Google Sheets Expense Ledger
+              <i class="fa-solid fa-table-cells text-emerald-600"></i> Google Sheets Expense Ledger
             </h2>
-            <p class="text-xs text-slate-500">Live synced records arranged in 11 custom farm accounting columns.</p>
+            <p class="text-xs text-slate-500">Live synced records arranged in 11 custom accounting columns.</p>
           </div>
-          <button type="button" onclick="loadReceiptsList()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold border border-slate-300">
-            <i class="fa-solid fa-arrows-rotate"></i> Refresh
-          </button>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="loadReceiptsList()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold border border-slate-300 flex items-center gap-1">
+              <i class="fa-solid fa-arrows-rotate"></i> Refresh
+            </button>
+            <button type="button" onclick="clearAllScannedReceipts()" class="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold border border-rose-200 flex items-center gap-1" title="Clear Local Ledger List">
+              <i class="fa-solid fa-trash-can"></i> Clear List
+            </button>
+          </div>
         </div>
 
         <div class="overflow-x-auto rounded-xl border border-slate-200">
           <table class="w-full text-left text-xs text-slate-600">
             <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
               <tr>
-                <th class="px-3 py-2.5">Entry Time</th>
+                <th class="px-3 py-2.5">Time</th>
                 <th class="px-3 py-2.5">Date</th>
                 <th class="px-3 py-2.5">Particulars</th>
-                <th class="px-3 py-2.5">Payment Mode</th>
-                <th class="px-3 py-2.5">Ref No. / Inv No.</th>
-                <th class="px-3 py-2.5">Amount (MYR)</th>
+                <th class="px-3 py-2.5">Payment</th>
+                <th class="px-3 py-2.5">Ref No.</th>
+                <th class="px-3 py-2.5">Amount</th>
                 <th class="px-3 py-2.5">Category</th>
                 <th class="px-3 py-2.5">Entity</th>
-                <th class="px-3 py-2.5">Status</th>
+                <th class="px-3 py-2.5 text-center">Action</th>
               </tr>
             </thead>
             <tbody id="ledger-table-body" class="divide-y divide-slate-100"></tbody>
@@ -421,9 +402,9 @@
   <!-- App Footer with Versioning -->
   <footer class="w-full text-center py-4 bg-slate-100 border-t border-slate-200 text-xs text-slate-500 mt-8 mb-6">
     <div class="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-      <p class="font-semibold text-slate-700">AutoAccount AI • Smart Scanner & Farm Ledger</p>
+      <p class="font-semibold text-slate-700">AutoAccount AI • Smart Scanner & Expense Ledger</p>
       <p class="flex items-center gap-2">
-        <span class="px-2.5 py-1 rounded-full bg-emerald-700 text-white font-mono font-bold text-2xs shadow-sm">Version 1.5.0-farm (Multi-Company)</span>
+        <span class="px-2.5 py-1 rounded-full bg-emerald-700 text-white font-mono font-bold text-2xs shadow-sm">Version 1.5.1 (Multi-Entity)</span>
         <span class="text-slate-400">• 24/7 Cloud Active</span>
       </p>
     </div>
@@ -440,7 +421,7 @@
       </div>
 
       <p class="text-xs text-slate-600">
-        Switch entities anytime. Each company can route receipts into its own dedicated Google Sheet & Drive.
+        Switch entities anytime. Each company or person can route receipts into its own dedicated Google Sheet & Drive.
       </p>
 
       <!-- Active Companies List -->
@@ -455,7 +436,7 @@
         </h4>
         <div>
           <label class="block text-2xs font-bold text-slate-600 uppercase mb-1">Company / Entity Name</label>
-          <input type="text" id="new-company-name" placeholder="e.g. Agro Supplies Sdn Bhd or Personal Claims" class="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white" />
+          <input type="text" id="new-company-name" placeholder="e.g. ABC Trading Sdn Bhd or Personal Claims" class="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white" />
         </div>
         <div>
           <label class="block text-2xs font-bold text-slate-600 uppercase mb-1">Google Apps Script Webhook URL (Google Sheet)</label>

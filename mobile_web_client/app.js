@@ -7,6 +7,42 @@ let currentReceiptData = null;
 let allReceipts = [];
 let userGeminiApiKey = localStorage.getItem("gemini_api_key") || "";
 
+// Standard Universal Accounting Categories (Business, Trade, Transport, Operations, Agriculture)
+const ACCOUNTING_CATEGORIES = [
+  "General Expenses",
+  "Plant Inputs",
+  "Packing Materials",
+  "Salaries",
+  "Wages",
+  "Staff Welfare",
+  "Worker Permit",
+  "Petrol & Fuel",
+  "Toll & Parking",
+  "Electricity",
+  "Water",
+  "Telephone & Internet",
+  "Office Supplies & Stationery",
+  "Upkeep of Vehicles",
+  "Upkeep of Equipment & Tools",
+  "Repair & Maintenance",
+  "Insurance & Road Tax",
+  "Printing & Advertising",
+  "Medical & Healthcare",
+  "Entertainment & Meals",
+  "License & Registrations",
+  "Training Fee",
+  "Professional & Legal Fee",
+  "Accounting & Audit Fee",
+  "Bank Charges & Interest",
+  "Depreciation",
+  "Property & Buildings",
+  "Machinery & Fixed Assets",
+  "Cash in Hand / Petty Cash",
+  "Deposits & Prepayments",
+  "Accruals",
+  "Sales Revenue"
+];
+
 // Multi-Company State
 const DEFAULT_COMPANIES = [
   {
@@ -22,10 +58,23 @@ let activeCompanyId = localStorage.getItem("active_company_id") || companyProfil
 // Initialize
 document.addEventListener("DOMContentLoaded", () => {
   setupEventListeners();
+  populateCategoryDropdown();
   updateApiStatusUI();
   initCompanyProfiles();
   loadReceiptsList();
 });
+
+function populateCategoryDropdown() {
+  const catSelect = document.getElementById("field-category");
+  if (!catSelect) return;
+  catSelect.innerHTML = "";
+  ACCOUNTING_CATEGORIES.forEach((cat) => {
+    const opt = document.createElement("option");
+    opt.value = cat;
+    opt.textContent = cat;
+    catSelect.appendChild(opt);
+  });
+}
 
 // --- MULTI-COMPANY PROFILE FUNCTIONS ---
 
@@ -34,7 +83,6 @@ function initCompanyProfiles() {
     companyProfiles = DEFAULT_COMPANIES;
   }
   
-  // Ensure active company exists
   const exists = companyProfiles.find((c) => c.id === activeCompanyId);
   if (!exists) {
     activeCompanyId = companyProfiles[0].id;
@@ -100,7 +148,7 @@ function renderCompanyProfilesList() {
   if (!list) return;
 
   list.innerHTML = "";
-  companyProfiles.forEach((comp, idx) => {
+  companyProfiles.forEach((comp) => {
     const isActive = comp.id === activeCompanyId;
     const card = document.createElement("div");
     card.className = `p-3 rounded-xl border transition-all ${
@@ -481,7 +529,6 @@ function applyLiveImageFilter() {
   const cropperImg = document.getElementById("cropper-image");
   if (!cropperImg) return;
 
-  // Remove existing filter classes
   cropperImg.classList.remove(
     "filter-preview-original",
     "filter-preview-enhanced_clean",
@@ -518,32 +565,31 @@ async function loadSampleReceipt() {
   ctx.fillStyle = "#0f172a";
   ctx.font = "bold 18px Courier New, monospace";
   ctx.textAlign = "center";
-  ctx.fillText("SKG TYRE AUTOCARE SDN BHD", 220, 45);
+  ctx.fillText("SIN CHOON KEE AGRO PLT", 220, 45);
 
   ctx.font = "11px Courier New, monospace";
-  ctx.fillText("NO: 24, JALAN SETIA INDAH, SETIA ALAM", 220, 65);
-  ctx.fillText("TEL: 03-3358 1234", 220, 85);
+  ctx.fillText("NO 96 JALAN BESAR, 45500 TANJONG KARANG", 220, 65);
+  ctx.fillText("TEL: 012-5265945", 220, 85);
 
   ctx.font = "bold 12px Courier New, monospace";
   ctx.textAlign = "left";
   ctx.fillText("======================================", 20, 110);
-  ctx.fillText("INVOICE #: CS-2401407    DATE: 26/08/2026", 20, 130);
-  ctx.fillText("VEHICLE: PROTON EXORA    PAY: Cash", 20, 150);
+  ctx.fillText("BILL NO: C1-2608/00714  DATE: 18/08/2026", 20, 130);
+  ctx.fillText("CASHIER: ADMIN          PAY: Cash", 20, 150);
   ctx.fillText("======================================", 20, 170);
 
   ctx.font = "12px Courier New, monospace";
-  ctx.fillText("ITEM DESCRIPTION        QTY     AMOUNT", 20, 200);
+  ctx.fillText("DESCRIPTION             QTY     AMOUNT", 20, 200);
   ctx.fillText("--------------------------------------", 20, 215);
-  ctx.fillText("TYRE PATCHING / REPAIR  1x    RM  40.00", 20, 245);
-  ctx.fillText("WHEEL BALANCING         2x    RM  20.00", 20, 275);
+  ctx.fillText("INVERIS G75 (500ML)     2x    RM 390.00", 20, 245);
 
   ctx.font = "bold 13px Courier New, monospace";
-  ctx.fillText("--------------------------------------", 20, 310);
-  ctx.fillText("TOTAL AMOUNT:                RM  60.00", 20, 340);
-  ctx.fillText("======================================", 20, 365);
+  ctx.fillText("--------------------------------------", 20, 290);
+  ctx.fillText("TOTAL AMOUNT:               RM 390.00", 20, 320);
+  ctx.fillText("======================================", 20, 345);
 
   canvas.toBlob((blob) => {
-    const sampleFile = new File([blob], "sample_skg_tyre_receipt.jpg", { type: "image/jpeg" });
+    const sampleFile = new File([blob], "sample_cash_bill.jpg", { type: "image/jpeg" });
     processSelectedFile(sampleFile);
   }, "image/jpeg");
 }
@@ -638,9 +684,9 @@ function populateReviewForm(receipt) {
   document.getElementById("field-ref").value = receipt.reference_no || "";
   
   const catSelect = document.getElementById("field-category");
-  catSelect.value = receipt.category || "Plant Inputs";
+  catSelect.value = receipt.category || "General Expenses";
   if (!catSelect.value) {
-    catSelect.selectedIndex = 1;
+    catSelect.selectedIndex = 0;
   }
 
   const paySelect = document.getElementById("field-payment");
@@ -731,10 +777,22 @@ async function loadReceiptsList() {
 
 function renderLedgerTable(receipts) {
   const tbody = document.getElementById("ledger-table-body");
+  if (!tbody) return;
   tbody.innerHTML = "";
 
   if (receipts.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" class="text-center py-6 text-slate-400 italic">No farm receipts scanned yet. Tap "Scan & Extract" to start.</td></tr>`;
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="9" class="text-center py-8 text-slate-400">
+          <div class="flex flex-col items-center justify-center space-y-2">
+            <i class="fa-solid fa-receipt text-3xl text-slate-300"></i>
+            <p class="text-xs font-semibold text-slate-500">No scanned receipts yet.</p>
+            <button onclick="switchTab('scan')" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm">
+              <i class="fa-solid fa-camera"></i> Scan First Receipt
+            </button>
+          </div>
+        </td>
+      </tr>`;
     return;
   }
 
@@ -746,14 +804,18 @@ function renderLedgerTable(receipts) {
 
     tr.innerHTML = `
       <td class="px-3 py-2.5 font-mono text-2xs text-slate-500">${logTime}</td>
-      <td class="px-3 py-2.5 font-medium text-slate-800">${r.receipt_date || 'N/A'}</td>
+      <td class="px-3 py-2.5 font-medium text-slate-800 whitespace-nowrap">${r.receipt_date || 'N/A'}</td>
       <td class="px-3 py-2.5 font-semibold text-slate-900">${particularsCombined}</td>
       <td class="px-3 py-2.5"><span class="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-2xs font-semibold">${r.payment_method || 'Cash'}</span></td>
       <td class="px-3 py-2.5 text-slate-600 font-mono text-2xs">${r.reference_no || 'N/A'}</td>
-      <td class="px-3 py-2.5 font-bold text-emerald-700">${r.currency || 'MYR'} ${r.total_amount.toFixed(2)}</td>
+      <td class="px-3 py-2.5 font-bold text-emerald-700 whitespace-nowrap">${r.currency || 'MYR'} ${r.total_amount.toFixed(2)}</td>
       <td class="px-3 py-2.5"><span class="px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 text-2xs font-semibold">${r.category}</span></td>
-      <td class="px-3 py-2.5"><span class="px-2 py-0.5 rounded-md bg-sky-50 text-sky-800 text-2xs font-semibold">${r.company_name || 'KH Agri Farm'}</span></td>
-      <td class="px-3 py-2.5"><span class="px-2 py-0.5 rounded-md bg-teal-50 text-teal-700 text-2xs font-semibold">${r.status || 'Synced'}</span></td>
+      <td class="px-3 py-2.5"><span class="px-2 py-0.5 rounded-md bg-sky-50 text-sky-800 text-2xs font-semibold">${r.company_name || 'Active Account'}</span></td>
+      <td class="px-3 py-2.5 text-center">
+        <button type="button" onclick="deleteReceiptRow('${r.id}')" class="p-1.5 text-slate-400 hover:text-red-600 text-xs transition-colors" title="Delete Receipt">
+          <i class="fa-solid fa-trash-can"></i>
+        </button>
+      </td>
     `;
     tbody.appendChild(tr);
   });
@@ -761,10 +823,23 @@ function renderLedgerTable(receipts) {
 
 function renderCompileSelector(receipts) {
   const container = document.getElementById("compile-receipt-list");
+  const countBadge = document.getElementById("compile-count-badge");
+  if (!container) return;
   container.innerHTML = "";
 
+  if (countBadge) {
+    countBadge.innerText = `${receipts.length} Receipt${receipts.length === 1 ? '' : 's'}`;
+  }
+
   if (receipts.length === 0) {
-    container.innerHTML = `<p class="text-xs text-slate-400 italic py-4">No receipts available to compile. Scan bills first.</p>`;
+    container.innerHTML = `
+      <div class="text-center py-8 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl space-y-2">
+        <i class="fa-solid fa-folder-open text-3xl text-slate-300"></i>
+        <p class="text-xs font-semibold text-slate-500">No receipts scanned yet.</p>
+        <button onclick="switchTab('scan')" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm">
+          <i class="fa-solid fa-camera"></i> Scan First Receipt
+        </button>
+      </div>`;
     return;
   }
 
@@ -773,14 +848,17 @@ function renderCompileSelector(receipts) {
     div.className = "flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-100 transition-colors";
     div.innerHTML = `
       <div class="flex items-center space-x-3">
-        <input type="checkbox" class="compile-checkbox rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4" value="${r.id}" checked />
+        <input type="checkbox" class="compile-checkbox rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4 cursor-pointer" value="${r.id}" checked />
         <div>
           <p class="font-bold text-xs text-slate-800">${r.merchant_name} <span class="font-normal text-slate-500">(${r.receipt_date})</span></p>
-          <p class="text-2xs text-slate-500">Ref: ${r.reference_no || 'N/A'} | Mode: ${r.payment_method || 'Cash'} | Entity: ${r.company_name || 'KH Agri Farm'}</p>
+          <p class="text-2xs text-slate-500">Ref: ${r.reference_no || 'N/A'} | Mode: ${r.payment_method || 'Cash'} | Entity: ${r.company_name || 'Active Account'}</p>
         </div>
       </div>
-      <div class="text-right">
+      <div class="flex items-center gap-3">
         <span class="font-bold text-xs text-emerald-700">${r.currency || 'MYR'} ${r.total_amount.toFixed(2)}</span>
+        <button type="button" onclick="deleteReceiptRow('${r.id}')" class="text-slate-400 hover:text-red-600 text-xs p-1" title="Delete">
+          <i class="fa-solid fa-trash-can"></i>
+        </button>
       </div>
     `;
     container.appendChild(div);
@@ -793,6 +871,40 @@ function selectAllReceipts(selectAll) {
   });
 }
 
+async function deleteReceiptRow(receiptId) {
+  if (!confirm("Are you sure you want to delete this receipt record?")) return;
+
+  try {
+    const res = await fetch("/api/delete-receipt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: receiptId })
+    });
+    if (res.ok) {
+      loadReceiptsList();
+    }
+  } catch (e) {
+    alert("Error deleting receipt: " + e.message);
+  }
+}
+
+async function clearAllScannedReceipts() {
+  if (!confirm("Are you sure you want to clear the local scanned receipt list?")) return;
+
+  try {
+    const res = await fetch("/api/clear-receipts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({})
+    });
+    if (res.ok) {
+      loadReceiptsList();
+    }
+  } catch (e) {
+    alert("Error clearing receipts: " + e.message);
+  }
+}
+
 async function generateCompiledPDF() {
   const selectedIds = Array.from(document.querySelectorAll(".compile-checkbox:checked")).map((cb) => cb.value);
   if (selectedIds.length === 0) {
@@ -801,7 +913,7 @@ async function generateCompiledPDF() {
   }
 
   const layoutMode = document.getElementById("compile-layout").value;
-  const title = document.getElementById("compile-title").value || "Farm Expense & Receipts Audit Sheet";
+  const title = document.getElementById("compile-title").value || "Expense Claim & Receipts Audit Sheet";
 
   try {
     const res = await fetch("/api/compile-a4-pdf", {
@@ -842,12 +954,10 @@ function switchTab(tabName) {
     const btn = document.getElementById(`tab-${t}-btn`);
     if (t === tabName) {
       section.classList.remove("hidden");
-      btn.classList.add("bg-white", "text-emerald-800", "shadow");
-      btn.classList.remove("text-slate-600");
+      btn.className = "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 px-1 sm:px-3 rounded-xl font-bold text-xs transition-all shadow bg-white text-emerald-800";
     } else {
       section.classList.add("hidden");
-      btn.classList.remove("bg-white", "text-emerald-800", "shadow");
-      btn.classList.add("text-slate-600");
+      btn.className = "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 px-1 sm:px-3 rounded-xl font-bold text-xs transition-all text-slate-600 hover:text-slate-900";
     }
   });
 

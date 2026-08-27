@@ -175,6 +175,30 @@ def update_receipt(updated: ReceiptData):
             return {"success": True, "receipt": updated}
     raise HTTPException(status_code=404, detail="Receipt not found")
 
+@app.post("/api/delete-receipt")
+def delete_receipt(data: dict):
+    global receipts_db
+    receipt_id = data.get("id")
+    if not receipt_id:
+        raise HTTPException(status_code=400, detail="Receipt ID required")
+    before_len = len(receipts_db)
+    receipts_db = [r for r in receipts_db if r.id != receipt_id]
+    if len(receipts_db) < before_len:
+        save_receipts()
+        return {"success": True, "deleted_id": receipt_id}
+    raise HTTPException(status_code=404, detail="Receipt not found")
+
+@app.post("/api/clear-receipts")
+def clear_receipts(data: Optional[dict] = None):
+    global receipts_db
+    company_name = data.get("company_name") if data else None
+    if company_name:
+        receipts_db = [r for r in receipts_db if r.company_name != company_name]
+    else:
+        receipts_db = []
+    save_receipts()
+    return {"success": True, "remaining_count": len(receipts_db)}
+
 @app.post("/api/compile-a4-pdf")
 def compile_a4_pdf(request: CompileA4Request):
     if request.receipt_ids:

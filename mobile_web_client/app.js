@@ -592,6 +592,41 @@ async function loadSampleReceipt() {
     const sampleFile = new File([blob], "sample_cash_bill.jpg", { type: "image/jpeg" });
     processSelectedFile(sampleFile);
   }, "image/jpeg");
+// --- FAST CLIENT-SIDE IMAGE COMPRESSION ---
+
+async function compressImageForUpload(blobOrFile, maxDimension = 1100, quality = 0.82) {
+  return new Promise((resolve) => {
+    try {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          resolve(blob || blobOrFile);
+        }, "image/jpeg", quality);
+      };
+      img.onerror = () => resolve(blobOrFile);
+      img.src = URL.createObjectURL(blobOrFile);
+    } catch (e) {
+      resolve(blobOrFile);
+    }
+  });
 }
 
 // --- SCAN AND EXTRACTION WITH TARGET COMPANY WEBHOOK ---
@@ -609,17 +644,20 @@ async function processAndExtract() {
   loadingCard.classList.remove("hidden");
   resultCard.classList.add("hidden");
 
-  const sendPayload = async (imageBlob) => {
-    const formData = new FormData();
-    formData.append("file", imageBlob, "receipt_upload.jpg");
-    formData.append("filter_mode", currentFilter);
-    formData.append("auto_crop", "false");
-    formData.append("api_key", userGeminiApiKey || "");
-    formData.append("company_name", activeComp.name || "");
-    formData.append("webhook_url", activeComp.webhook_url || "");
-    formData.append("auto_sync", "true");
-
+  const sendPayload = async (rawImageBlob) => {
     try {
+      // 1. Client-side ultra-fast compression (drops 10MB camera photo to ~80KB)
+      const compressedBlob = await compressImageForUpload(rawImageBlob, 1100, 0.82);
+
+      const formData = new FormData();
+      formData.append("file", compressedBlob, "receipt_upload.jpg");
+      formData.append("filter_mode", currentFilter);
+      formData.append("auto_crop", "false");
+      formData.append("api_key", userGeminiApiKey || "");
+      formData.append("company_name", activeComp.name || "");
+      formData.append("webhook_url", activeComp.webhook_url || "");
+      formData.append("auto_sync", "true");
+
       const res = await fetch("/api/scan-and-extract", {
         method: "POST",
         body: formData
@@ -665,7 +703,7 @@ async function processAndExtract() {
       if (croppedCanvas) {
         croppedCanvas.toBlob((blob) => {
           sendPayload(blob || originalImageFile);
-        }, "image/jpeg", 0.95);
+        }, "image/jpeg", 0.92);
         return;
       }
     } catch (e) {

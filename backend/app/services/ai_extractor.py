@@ -3,55 +3,24 @@ import json
 import re
 import base64
 import requests
+import time
 from datetime import datetime
 from typing import Optional
 from ..models.receipt import ReceiptData, ReceiptItem
 from ..config import settings
 from .image_processor import ImageProcessor
 
-FARM_CATEGORIES = [
-    "Sales of Chilies",
-    "Plant Inputs",
-    "Packing Materials",
-    "Salaries",
-    "Wages",
-    "Staff Welfare",
-    "Worker Permit",
-    "Petrol",
-    "Toll & Parking",
-    "Electricity",
-    "Water",
-    "Telephone & Internet",
-    "Upkeep of Farm",
-    "Upkeep of Farm Equipment",
-    "Upkeep of Vehicles",
-    "Insurance & Road tax",
-    "Printing & Stationery",
-    "Medical",
-    "Entertainment",
-    "License Fee",
-    "Training Fee",
-    "Professional Fee",
-    "Accounting Fee",
-    "Bank Charges",
-    "Depreciation",
-    "Farm House",
-    "Farm Equipment",
-    "Accum - Fixed Assets",
-    "Cash in Hand",
-    "Deposits & Prepayments",
-    "Accrual",
-    "Payback by worker for permit"
-]
-
 class AIExtractor:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or settings.gemini_api_key or os.getenv("GEMINI_API_KEY", "")
+        self.session = requests.Session()
+        self.session.headers.update({"Content-Type": "application/json"})
 
     def extract_receipt_data(self, image_bytes: bytes, api_key: Optional[str] = None) -> ReceiptData:
         """
-        Fast AI Vision extraction using gemini-3.6-flash & gemini-3.5-flash.
+        Ultra-fast AI Vision extraction using optimized Gemini 3.6 Flash.
         """
+        start_time = time.time()
         key = (api_key or self.api_key or settings.gemini_api_key or os.getenv("GEMINI_API_KEY", "")).strip()
         
         if not key:
@@ -60,27 +29,28 @@ class AIExtractor:
                 merchant_name="[API Key Missing]",
                 item_description="Please enter your Gemini API Key in Settings",
                 reference_no="",
-                category="Upkeep of Vehicles",
+                category="General Expenses",
                 currency="MYR",
                 total_amount=0.0,
                 notes="Enter your Gemini API Key in Settings."
             )
 
-        optimized_bytes = ImageProcessor.optimize_for_vision(image_bytes, max_dim=1024)
+        # Ultra-fast vision compression (under 80KB payload for instant network transport)
+        optimized_bytes = ImageProcessor.optimize_for_vision(image_bytes, max_dim=850)
         b64_image = base64.b64encode(optimized_bytes).decode("utf-8")
 
         prompt = """Extract receipt JSON:
 {
-  "merchant_name": "Store / Vendor Name only",
-  "item_description": "Purchased items/services summary (e.g. Tyre Patching, Wheel Balancing)",
+  "merchant_name": "Store/Merchant name",
+  "item_description": "Summary of items or service purchased",
   "receipt_date": "YYYY-MM-DD",
   "reference_no": "Invoice or Receipt No",
-  "category": "Choose closest: Sales of Chilies, Plant Inputs, Packing Materials, Salaries, Wages, Staff Welfare, Worker Permit, Petrol, Toll & Parking, Electricity, Water, Telephone & Internet, Upkeep of Farm, Upkeep of Farm Equipment, Upkeep of Vehicles, Insurance & Road tax, Printing & Stationery, Medical, Entertainment, License Fee, Training Fee, Professional Fee, Accounting Fee, Bank Charges, Depreciation, Farm House, Farm Equipment, Accum - Fixed Assets, Cash in Hand, Deposits & Prepayments, Accrual, Payback by worker for permit",
+  "category": "Accounting category (e.g. Plant Inputs, Upkeep of Vehicles, Petrol, Salaries, Office Supplies, General Expenses)",
   "currency": "MYR",
   "subtotal": 0.0,
   "tax_amount": 0.0,
   "total_amount": 0.0,
-  "payment_method": "Cash or Credit Card or TnG or ShopeePay",
+  "payment_method": "Cash or Credit Card or TnG or ShopeePay or Bank Transfer",
   "items": [{"name": "item name", "quantity": 1.0, "unit_price": 0.0, "total_price": 0.0}]
 }
 Return pure JSON only."""
@@ -110,14 +80,15 @@ Return pure JSON only."""
                     }],
                     "generationConfig": {
                         "temperature": 0.0,
+                        "maxOutputTokens": 380,
                         "responseMimeType": "application/json"
                     }
                 }
 
-                res = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, timeout=20)
+                res = self.session.post(url, json=payload, timeout=12)
                 if res.status_code != 200:
                     last_error = f"{res.status_code}: {res.text[:150]}"
-                    print(f"[AIExtractor] Model {model_name} failed: {last_error}")
+                    print(f"[AIExtractor] Model {model_name} status {res.status_code}: {last_error}")
                     continue
 
                 res_json = res.json()
@@ -149,7 +120,6 @@ Return pure JSON only."""
                         pass
 
                 receipt_date_str = str(parsed.get("receipt_date", "")).strip()
-                # Parse various date formats to YYYY-MM-DD
                 if not re.match(r"^\d{4}-\d{2}-\d{2}$", receipt_date_str):
                     d_match = re.search(r"(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})", receipt_date_str)
                     if d_match:
@@ -176,18 +146,12 @@ Return pure JSON only."""
                     pm = "TnG"
                 elif "shopee" in pm_raw.lower():
                     pm = "ShopeePay"
+                elif "transfer" in pm_raw.lower() or "online" in pm_raw.lower():
+                    pm = "Bank Transfer"
                 else:
                     pm = "Cash"
 
-                category_val = str(parsed.get("category", "Upkeep of Vehicles")).strip()
-                if category_val not in FARM_CATEGORIES:
-                    # Auto assign Upkeep of Vehicles if automotive/tyre
-                    m_lower = parsed.get("merchant_name", "").lower()
-                    if "tyre" in m_lower or "auto" in m_lower or "motor" in m_lower or "service" in m_lower:
-                        category_val = "Upkeep of Vehicles"
-                    else:
-                        category_val = "Plant Inputs"
-
+                category_val = str(parsed.get("category", "General Expenses")).strip()
                 item_desc = str(parsed.get("item_description", "")).strip()
                 if not item_desc and item_names:
                     item_desc = ", ".join(item_names)
@@ -197,6 +161,9 @@ Return pure JSON only."""
                     tot_amt = float(str(parsed.get("total_amount", "0")).replace("RM", "").replace("$", "").replace(",", "").strip())
                 except Exception:
                     tot_amt = 0.0
+
+                elapsed = time.time() - start_time
+                print(f"[AIExtractor] Extraction succeeded with {model_name} in {elapsed:.2f}s!")
 
                 return ReceiptData(
                     receipt_date=receipt_date_str,
@@ -221,7 +188,7 @@ Return pure JSON only."""
             merchant_name="AI Extraction Error",
             item_description=f"Error: {last_error}",
             reference_no="",
-            category="Plant Inputs",
+            category="General Expenses",
             currency="MYR",
             total_amount=0.0,
             notes=str(last_error)

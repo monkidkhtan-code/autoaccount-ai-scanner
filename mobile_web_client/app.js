@@ -594,7 +594,7 @@ async function loadSampleReceipt() {
   }, "image/jpeg");
 // --- FAST CLIENT-SIDE IMAGE COMPRESSION ---
 
-async function compressImageForUpload(blobOrFile, maxDimension = 1100, quality = 0.82) {
+async function compressImageForUpload(blobOrFile, maxDimension = 900, quality = 0.80) {
   return new Promise((resolve) => {
     try {
       const img = new Image();
@@ -629,6 +629,72 @@ async function compressImageForUpload(blobOrFile, maxDimension = 1100, quality =
   });
 }
 
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64data = reader.result.split(',')[1];
+      resolve(base64data);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+// --- DIRECT CLIENT TURBO EXTRACTION ENGINE (<1s LATENCY) ---
+
+async function extractDirectWithGemini(base64Image, apiKey) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+  const prompt = `Extract receipt JSON:
+{
+  "merchant_name": "Store/Merchant name",
+  "item_description": "Summary of items or service purchased",
+  "receipt_date": "YYYY-MM-DD",
+  "reference_no": "Invoice or Receipt No",
+  "category": "Accounting category (e.g. Plant Inputs, Upkeep of Vehicles, Petrol, Salaries, Office Supplies, General Expenses)",
+  "currency": "MYR",
+  "subtotal": 0.0,
+  "tax_amount": 0.0,
+  "total_amount": 0.0,
+  "payment_method": "Cash or Credit Card or TnG or ShopeePay or Bank Transfer",
+  "items": [{"name": "item name", "quantity": 1.0, "unit_price": 0.0, "total_price": 0.0}]
+}
+Return pure JSON only.`;
+
+  const payload = {
+    contents: [{
+      parts: [
+        { text: prompt },
+        { inline_data: { mime_type: "image/jpeg", data: base64Image } }
+      ]
+    }],
+    generationConfig: {
+      temperature: 0.0,
+      maxOutputTokens: 280,
+      responseMimeType: "application/json",
+      thinkingConfig: { thinkingBudget: 0 }
+    }
+  };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Direct AI call status ${response.status}`);
+  }
+
+  const jsonRes = await response.json();
+  let rawText = jsonRes.candidates[0].content.parts[0].text.trim();
+  if (rawText.startsWith("```json")) rawText = rawText.substring(7);
+  if (rawText.startsWith("```")) rawText = rawText.substring(3);
+  if (rawText.endsWith("```")) rawText = rawText.substring(0, rawText.length - 3);
+  
+  return JSON.parse(rawText.trim());
+}
+
 // --- SCAN AND EXTRACTION WITH TARGET COMPANY WEBHOOK ---
 
 async function processAndExtract() {
@@ -644,11 +710,61 @@ async function processAndExtract() {
   loadingCard.classList.remove("hidden");
   resultCard.classList.add("hidden");
 
-  const sendPayload = async (rawImageBlob) => {
+  const executeTurbo = async (rawImageBlob) => {
+    const t0 = performance.now();
     try {
-      // 1. Client-side ultra-fast compression (drops 10MB camera photo to ~80KB)
-      const compressedBlob = await compressImageForUpload(rawImageBlob, 1100, 0.82);
+      // 1. Client-side ultra-fast compression (drops image to ~60KB)
+      const compressedBlob = await compressImageForUpload(rawImageBlob, 900, 0.80);
+      let parsedReceipt = null;
 
+      // 2. Direct Turbo Call if API key is in browser
+      if (userGeminiApiKey && userGeminiApiKey.trim().length > 0) {
+        try {
+          const b64 = await blobToBase64(compressedBlob);
+          parsedReceipt = await extractDirectWithGemini(b64, userGeminiApiKey.trim());
+          const tDirect = ((performance.now() - t0) / 1000).toFixed(2);
+          console.log(`⚡ Direct Turbo Extraction finished in ${tDirect}s!`);
+        } catch (directErr) {
+          console.warn("Direct turbo failed, falling back to server:", directErr);
+        }
+      }
+
+      // 3. Populate form instantly if direct extraction succeeded
+      if (parsedReceipt) {
+        parsedReceipt.id = `REC-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+        parsedReceipt.company_name = activeComp.name;
+        currentReceiptData = parsedReceipt;
+        populateReviewForm(parsedReceipt);
+
+        loadingCard.classList.add("hidden");
+        resultCard.classList.remove("hidden");
+        resultCard.scrollIntoView({ behavior: "smooth" });
+
+        // Asynchronous background sync to server & Google Sheets
+        const formData = new FormData();
+        formData.append("file", compressedBlob, "receipt_upload.jpg");
+        formData.append("filter_mode", currentFilter);
+        formData.append("auto_crop", "false");
+        formData.append("api_key", userGeminiApiKey || "");
+        formData.append("company_name", activeComp.name || "");
+        formData.append("webhook_url", activeComp.webhook_url || "");
+        formData.append("auto_sync", "true");
+
+        fetch("/api/scan-and-extract", { method: "POST", body: formData })
+          .then(r => r.json())
+          .then(data => {
+            if (data.receipt) {
+              currentReceiptData = data.receipt;
+              populateReviewForm(data.receipt);
+              loadReceiptsList();
+            }
+          })
+          .catch(e => console.warn("Background sync error:", e));
+
+        return;
+      }
+
+      // 4. Server-Side Fallback
       const formData = new FormData();
       formData.append("file", compressedBlob, "receipt_upload.jpg");
       formData.append("filter_mode", currentFilter);
@@ -686,7 +802,7 @@ async function processAndExtract() {
 
   // 1. If crop was applied and saved
   if (currentCroppedBlob) {
-    sendPayload(currentCroppedBlob);
+    executeTurbo(currentCroppedBlob);
     return;
   }
 
@@ -694,16 +810,16 @@ async function processAndExtract() {
   if (cropperInstance) {
     try {
       const croppedCanvas = cropperInstance.getCroppedCanvas({
-        maxWidth: 1200,
-        maxHeight: 1800,
+        maxWidth: 1000,
+        maxHeight: 1500,
         fillColor: '#ffffff',
         imageSmoothingEnabled: true,
         imageSmoothingQuality: 'high',
       });
       if (croppedCanvas) {
         croppedCanvas.toBlob((blob) => {
-          sendPayload(blob || originalImageFile);
-        }, "image/jpeg", 0.92);
+          executeTurbo(blob || originalImageFile);
+        }, "image/jpeg", 0.88);
         return;
       }
     } catch (e) {
@@ -712,7 +828,7 @@ async function processAndExtract() {
   }
 
   // 3. Fallback to original image
-  sendPayload(originalImageFile);
+  executeTurbo(originalImageFile);
 }
 
 function populateReviewForm(receipt) {

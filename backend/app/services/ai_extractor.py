@@ -14,11 +14,10 @@ class AIExtractor:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or settings.gemini_api_key or os.getenv("GEMINI_API_KEY", "")
         self.session = requests.Session()
-        self.session.headers.update({"Content-Type": "application/json"})
 
     def extract_receipt_data(self, image_bytes: bytes, api_key: Optional[str] = None) -> ReceiptData:
         """
-        Ultra-fast AI Vision extraction using optimized Gemini 3.6 Flash.
+        Ultra-fast AI Vision extraction using latency-optimized Gemini 3.5 Flash (0 thinking delay).
         """
         start_time = time.time()
         key = (api_key or self.api_key or settings.gemini_api_key or os.getenv("GEMINI_API_KEY", "")).strip()
@@ -35,8 +34,8 @@ class AIExtractor:
                 notes="Enter your Gemini API Key in Settings."
             )
 
-        # Ultra-fast vision compression (under 80KB payload for instant network transport)
-        optimized_bytes = ImageProcessor.optimize_for_vision(image_bytes, max_dim=850)
+        # Ultra-fast vision compression (max 800px for instant upload)
+        optimized_bytes = ImageProcessor.optimize_for_vision(image_bytes, max_dim=800)
         b64_image = base64.b64encode(optimized_bytes).decode("utf-8")
 
         prompt = """Extract receipt JSON:
@@ -55,17 +54,25 @@ class AIExtractor:
 }
 Return pure JSON only."""
 
+        # Priority order: gemini-3.5-flash with 0 thinking budget is the fastest vision model
         candidate_models = [
-            'gemini-3.6-flash',
-            'gemini-3.5-flash',
-            'gemini-3-flash-preview',
-            'gemini-flash-latest'
+            ('gemini-3.5-flash', True),
+            ('gemini-3.5-flash', False),
+            ('gemini-3.6-flash', False)
         ]
 
         last_error = None
-        for model_name in candidate_models:
+        for model_name, use_zero_thinking in candidate_models:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
+                gen_config = {
+                    "temperature": 0.0,
+                    "maxOutputTokens": 280,
+                    "responseMimeType": "application/json"
+                }
+                if use_zero_thinking:
+                    gen_config["thinkingConfig"] = {"thinkingBudget": 0}
+
                 payload = {
                     "contents": [{
                         "parts": [
@@ -78,17 +85,12 @@ Return pure JSON only."""
                             }
                         ]
                     }],
-                    "generationConfig": {
-                        "temperature": 0.0,
-                        "maxOutputTokens": 380,
-                        "responseMimeType": "application/json"
-                    }
+                    "generationConfig": gen_config
                 }
 
-                res = self.session.post(url, json=payload, timeout=12)
+                res = self.session.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=8)
                 if res.status_code != 200:
-                    last_error = f"{res.status_code}: {res.text[:150]}"
-                    print(f"[AIExtractor] Model {model_name} status {res.status_code}: {last_error}")
+                    last_error = f"{res.status_code}: {res.text[:120]}"
                     continue
 
                 res_json = res.json()
@@ -163,7 +165,7 @@ Return pure JSON only."""
                     tot_amt = 0.0
 
                 elapsed = time.time() - start_time
-                print(f"[AIExtractor] Extraction succeeded with {model_name} in {elapsed:.2f}s!")
+                print(f"[AIExtractor] Fast extraction finished in {elapsed:.2f}s using {model_name} (zero-thinking: {use_zero_thinking})")
 
                 return ReceiptData(
                     receipt_date=receipt_date_str,
@@ -181,7 +183,6 @@ Return pure JSON only."""
                 )
             except Exception as e:
                 last_error = str(e)
-                print(f"[AIExtractor] Model {model_name} error: {e}")
 
         return ReceiptData(
             receipt_date=datetime.now().strftime("%Y-%m-%d"),

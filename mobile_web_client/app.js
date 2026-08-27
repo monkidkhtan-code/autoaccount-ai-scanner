@@ -592,6 +592,8 @@ async function loadSampleReceipt() {
     const sampleFile = new File([blob], "sample_cash_bill.jpg", { type: "image/jpeg" });
     processSelectedFile(sampleFile);
   }, "image/jpeg");
+}
+
 // --- FAST CLIENT-SIDE IMAGE COMPRESSION ---
 
 async function compressImageForUpload(blobOrFile, maxDimension = 900, quality = 0.80) {

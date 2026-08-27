@@ -756,26 +756,25 @@ async function processAndExtract() {
         resultCard.classList.remove("hidden");
         resultCard.scrollIntoView({ behavior: "smooth" });
 
-        // Asynchronous background sync to server & Google Sheets
+        // Save receipt and sync to Google Drive & Google Sheet
         const formData = new FormData();
         formData.append("file", compressedBlob, "receipt_upload.jpg");
+        formData.append("receipt_json", JSON.stringify(parsedReceipt));
         formData.append("filter_mode", currentFilter);
-        formData.append("auto_crop", "false");
-        formData.append("api_key", userGeminiApiKey || "");
         formData.append("company_name", activeComp.name || "");
         formData.append("webhook_url", activeComp.webhook_url || "");
-        formData.append("auto_sync", "true");
 
-        fetch("/api/scan-and-extract", { method: "POST", body: formData })
+        fetch("/api/save-extracted-receipt", { method: "POST", body: formData })
           .then(r => r.json())
           .then(data => {
             if (data.receipt) {
               currentReceiptData = data.receipt;
-              populateReviewForm(data.receipt);
+              document.getElementById("badge-company-name").innerText = `🏢 ${data.receipt.company_name || activeComp.name}`;
+              document.getElementById("badge-drive-folder").innerText = data.receipt.drive_folder || "Google Drive > Receipts";
               loadReceiptsList();
             }
           })
-          .catch(e => console.warn("Background sync error:", e));
+          .catch(e => console.warn("Background save error:", e));
 
         return;
       }
@@ -918,7 +917,8 @@ async function updateReceiptRecord() {
   currentReceiptData.company_name = activeComp.name;
 
   try {
-    const res = await fetch("/api/update-receipt", {
+    const hookParam = encodeURIComponent(activeComp.webhook_url || "");
+    const res = await fetch(`/api/update-receipt?webhook_url=${hookParam}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(currentReceiptData)

@@ -158,6 +158,84 @@ async def scan_and_extract(
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/save-extracted-receipt")
+async def save_extracted_receipt(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    receipt_json: str = Form(...),
+    filter_mode: str = Form("enhanced_clean"),
+    company_name: Optional[str] = Form(None),
+    webhook_url: Optional[str] = Form(None)
+):
+    """
+    Direct endpoint for saving client-extracted receipt without running AI vision again.
+    """
+    try:
+        image_bytes = await file.read()
+        enhanced_bytes = ImageProcessor.enhance_receipt(image_bytes, filter_mode=filter_mode, auto_crop=False)
+        
+        parsed = json.loads(receipt_json)
+        
+        # Ensure items format
+        raw_items = parsed.get("items", [])
+        items_list = []
+        for it in raw_items:
+            try:
+                items_list.append(ReceiptItem(
+                    name=str(it.get("name", "Item")),
+                    quantity=float(it.get("quantity", 1.0) or 1.0),
+                    unit_price=float(it.get("unit_price", 0.0) or 0.0),
+                    total_price=float(it.get("total_price", 0.0) or 0.0)
+                ))
+            except Exception:
+                pass
+        
+        receipt_obj = ReceiptData(
+            id=str(parsed.get("id") or f"REC-{uuid.uuid4().hex[:6].upper()}"),
+            receipt_date=str(parsed.get("receipt_date") or datetime.now().strftime("%Y-%m-%d")),
+            merchant_name=str(parsed.get("merchant_name") or "Unknown Merchant"),
+            item_description=str(parsed.get("item_description") or ""),
+            reference_no=str(parsed.get("reference_no") or ""),
+            category=str(parsed.get("category") or "General Expenses"),
+            currency=str(parsed.get("currency") or "MYR"),
+            subtotal=float(parsed.get("subtotal", 0.0) or 0.0),
+            tax_amount=float(parsed.get("tax_amount", 0.0) or 0.0),
+            total_amount=float(parsed.get("total_amount", 0.0) or 0.0),
+            payment_method=str(parsed.get("payment_method") or "Cash"),
+            items=items_list,
+            company_name=company_name or str(parsed.get("company_name") or "Active Account")
+        )
+
+        drive_info = drive_service.save_and_organize_receipt(
+            image_bytes=enhanced_bytes,
+            receipt_date=receipt_obj.receipt_date or "2026-08-28",
+            merchant_name=receipt_obj.merchant_name or "Receipt",
+            reference_no=receipt_obj.reference_no or "NoRef"
+        )
+        receipt_obj.image_url = drive_info["local_path"]
+        receipt_obj.drive_link = drive_info["drive_link"]
+        receipt_obj.drive_folder = drive_info["drive_folder"]
+        receipt_obj.status = "Saved & Syncing to Cloud..."
+
+        # Persist in DB
+        receipts_db.insert(0, receipt_obj)
+        save_receipts()
+
+        target_hook = (webhook_url or settings.google_apps_script_url or "").strip()
+        if target_hook:
+            background_tasks.add_task(background_cloud_sync, receipt_obj, enhanced_bytes, target_hook)
+
+        return {
+            "success": True,
+            "receipt": receipt_obj,
+            "drive_info": drive_info,
+            "relative_image_url": f"/api/storage-image?path={drive_info['relative_path']}"
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/receipts")
 def get_receipts():
     return {
@@ -166,12 +244,21 @@ def get_receipts():
     }
 
 @app.post("/api/update-receipt")
-def update_receipt(updated: ReceiptData):
+def update_receipt(
+    updated: ReceiptData,
+    background_tasks: BackgroundTasks,
+    webhook_url: Optional[str] = None
+):
     global receipts_db
     for idx, r in enumerate(receipts_db):
         if r.id == updated.id:
             receipts_db[idx] = updated
             save_receipts()
+            
+            target_hook = (webhook_url or settings.google_apps_script_url or "").strip()
+            if target_hook:
+                background_tasks.add_task(background_cloud_sync, updated, b"", target_hook)
+            
             return {"success": True, "receipt": updated}
     raise HTTPException(status_code=404, detail="Receipt not found")
 

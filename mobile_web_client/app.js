@@ -646,7 +646,6 @@ function blobToBase64(blob) {
 // --- DIRECT CLIENT TURBO EXTRACTION ENGINE (<1s LATENCY) ---
 
 async function extractDirectWithGemini(base64Image, apiKey) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
   const prompt = `Extract receipt JSON:
 {
   "merchant_name": "Store/Merchant name",
@@ -672,29 +671,44 @@ Return pure JSON only.`;
     }],
     generationConfig: {
       temperature: 0.0,
-      maxOutputTokens: 280,
-      responseMimeType: "application/json",
-      thinkingConfig: { thinkingBudget: 0 }
+      maxOutputTokens: 350,
+      responseMimeType: "application/json"
     }
   };
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
+  const models = ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.5-flash"];
+  let lastErr = null;
 
-  if (!response.ok) {
-    throw new Error(`Direct AI call status ${response.status}`);
+  for (const m of models) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        continue;
+      }
+
+      const jsonRes = await response.json();
+      if (!jsonRes.candidates || !jsonRes.candidates[0] || !jsonRes.candidates[0].content) {
+        continue;
+      }
+
+      let rawText = jsonRes.candidates[0].content.parts[0].text.trim();
+      if (rawText.startsWith("```json")) rawText = rawText.substring(7);
+      if (rawText.startsWith("```")) rawText = rawText.substring(3);
+      if (rawText.endsWith("```")) rawText = rawText.substring(0, rawText.length - 3);
+      
+      return JSON.parse(rawText.trim());
+    } catch (e) {
+      lastErr = e;
+    }
   }
 
-  const jsonRes = await response.json();
-  let rawText = jsonRes.candidates[0].content.parts[0].text.trim();
-  if (rawText.startsWith("```json")) rawText = rawText.substring(7);
-  if (rawText.startsWith("```")) rawText = rawText.substring(3);
-  if (rawText.endsWith("```")) rawText = rawText.substring(0, rawText.length - 3);
-  
-  return JSON.parse(rawText.trim());
+  throw lastErr || new Error("Direct AI vision processing failed");
 }
 
 // --- SCAN AND EXTRACTION WITH TARGET COMPANY WEBHOOK ---

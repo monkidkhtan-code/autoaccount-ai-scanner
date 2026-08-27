@@ -17,7 +17,7 @@ class AIExtractor:
 
     def extract_receipt_data(self, image_bytes: bytes, api_key: Optional[str] = None) -> ReceiptData:
         """
-        Ultra-fast AI Vision extraction using latency-optimized Gemini 3.5 Flash (0 thinking delay).
+        Rock-solid AI Vision extraction using ultra-fast Flash-Lite & Flash models with safe 25s timeout.
         """
         start_time = time.time()
         key = (api_key or self.api_key or settings.gemini_api_key or os.getenv("GEMINI_API_KEY", "")).strip()
@@ -34,8 +34,7 @@ class AIExtractor:
                 notes="Enter your Gemini API Key in Settings."
             )
 
-        # Ultra-fast vision compression (max 800px for instant upload)
-        optimized_bytes = ImageProcessor.optimize_for_vision(image_bytes, max_dim=800)
+        optimized_bytes = ImageProcessor.optimize_for_vision(image_bytes, max_dim=900)
         b64_image = base64.b64encode(optimized_bytes).decode("utf-8")
 
         prompt = """Extract receipt JSON:
@@ -54,24 +53,23 @@ class AIExtractor:
 }
 Return pure JSON only."""
 
-        # Priority order: gemini-3.5-flash with 0 thinking budget is the fastest vision model
+        # Priority order: gemini-3.5-flash-lite is the fastest vision model
         candidate_models = [
-            ('gemini-3.5-flash', True),
-            ('gemini-3.5-flash', False),
-            ('gemini-3.6-flash', False)
+            'gemini-3.5-flash-lite',
+            'gemini-3.6-flash',
+            'gemini-3.5-flash',
+            'gemini-flash-latest'
         ]
 
         last_error = None
-        for model_name, use_zero_thinking in candidate_models:
+        for model_name in candidate_models:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
                 gen_config = {
                     "temperature": 0.0,
-                    "maxOutputTokens": 280,
+                    "maxOutputTokens": 350,
                     "responseMimeType": "application/json"
                 }
-                if use_zero_thinking:
-                    gen_config["thinkingConfig"] = {"thinkingBudget": 0}
 
                 payload = {
                     "contents": [{
@@ -88,9 +86,10 @@ Return pure JSON only."""
                     "generationConfig": gen_config
                 }
 
-                res = self.session.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=8)
+                res = self.session.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=25)
                 if res.status_code != 200:
                     last_error = f"{res.status_code}: {res.text[:120]}"
+                    print(f"[AIExtractor] Model {model_name} error: {last_error}")
                     continue
 
                 res_json = res.json()
@@ -121,7 +120,7 @@ Return pure JSON only."""
                     except Exception:
                         pass
 
-                receipt_date_str = str(parsed.get("receipt_date", "")).strip()
+                receipt_date_str = str(parsed.get("receipt_date", "") or "").strip()
                 if not re.match(r"^\d{4}-\d{2}-\d{2}$", receipt_date_str):
                     d_match = re.search(r"(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})", receipt_date_str)
                     if d_match:
@@ -132,7 +131,7 @@ Return pure JSON only."""
                     else:
                         receipt_date_str = datetime.now().strftime("%Y-%m-%d")
 
-                currency_val = str(parsed.get("currency", "MYR")).strip().upper()
+                currency_val = str(parsed.get("currency", "MYR") or "MYR").strip().upper()
                 if currency_val in ["RM", "MYR"]:
                     currency_val = "MYR"
                 elif currency_val in ["$", "USD"]:
@@ -140,7 +139,7 @@ Return pure JSON only."""
                 elif currency_val in ["S$", "SGD"]:
                     currency_val = "SGD"
 
-                pm_raw = str(parsed.get("payment_method", "Cash")).strip()
+                pm_raw = str(parsed.get("payment_method", "Cash") or "Cash").strip()
                 pm = "Cash"
                 if "card" in pm_raw.lower() or "visa" in pm_raw.lower() or "master" in pm_raw.lower():
                     pm = "Credit Card"
@@ -153,25 +152,25 @@ Return pure JSON only."""
                 else:
                     pm = "Cash"
 
-                category_val = str(parsed.get("category", "General Expenses")).strip()
-                item_desc = str(parsed.get("item_description", "")).strip()
+                category_val = str(parsed.get("category", "General Expenses") or "General Expenses").strip()
+                item_desc = str(parsed.get("item_description", "") or "").strip()
                 if not item_desc and item_names:
                     item_desc = ", ".join(item_names)
 
                 tot_amt = 0.0
                 try:
-                    tot_amt = float(str(parsed.get("total_amount", "0")).replace("RM", "").replace("$", "").replace(",", "").strip())
+                    tot_amt = float(str(parsed.get("total_amount", "0") or "0").replace("RM", "").replace("$", "").replace(",", "").strip())
                 except Exception:
                     tot_amt = 0.0
 
                 elapsed = time.time() - start_time
-                print(f"[AIExtractor] Fast extraction finished in {elapsed:.2f}s using {model_name} (zero-thinking: {use_zero_thinking})")
+                print(f"[AIExtractor] Fast extraction finished in {elapsed:.2f}s using {model_name}")
 
                 return ReceiptData(
                     receipt_date=receipt_date_str,
-                    merchant_name=str(parsed.get("merchant_name", "Unknown Merchant")),
+                    merchant_name=str(parsed.get("merchant_name", "Unknown Merchant") or "Unknown Merchant"),
                     item_description=item_desc,
-                    reference_no=str(parsed.get("reference_no", "")),
+                    reference_no=str(parsed.get("reference_no", "") or ""),
                     category=category_val,
                     currency=currency_val,
                     subtotal=float(parsed.get("subtotal", 0.0) or 0.0),
@@ -179,10 +178,11 @@ Return pure JSON only."""
                     total_amount=tot_amt,
                     payment_method=pm,
                     items=items,
-                    notes=str(parsed.get("notes", ""))
+                    notes=str(parsed.get("notes", "") or "")
                 )
             except Exception as e:
                 last_error = str(e)
+                print(f"[AIExtractor] Model {model_name} failed: {e}")
 
         return ReceiptData(
             receipt_date=datetime.now().strftime("%Y-%m-%d"),

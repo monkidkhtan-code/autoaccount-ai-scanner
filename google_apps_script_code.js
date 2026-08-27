@@ -106,17 +106,35 @@ function doPost(e) {
       row.push(fileUrl);
     }
 
-    sheet.appendRow(row);
-    var newRowIdx = sheet.getLastRow();
+    var targetRowIdx = 0;
 
-    // Apply data validation dropdowns for new row
-    applyRowValidation(sheet, newRowIdx);
+    // If update action is specified and valid row index provided, overwrite in place
+    if (data.action === "update" && data.row_index && data.row_index > 1 && data.row_index <= sheet.getLastRow()) {
+      targetRowIdx = parseInt(data.row_index, 10);
+      var currentValues = sheet.getRange(targetRowIdx, 1, 1, 11).getValues()[0];
+      // Keep original Entry Log Time if already exists
+      if (currentValues[0]) {
+        row[0] = currentValues[0];
+      }
+      // Preserve existing image link if not re-uploaded
+      if (!fileUrl && currentValues[10]) {
+        row[10] = currentValues[10];
+        fileUrl = currentValues[10];
+      }
+      sheet.getRange(targetRowIdx, 1, 1, 11).setValues([row]);
+    } else {
+      sheet.appendRow(row);
+      targetRowIdx = sheet.getLastRow();
+    }
+
+    // Apply data validation dropdowns for row
+    applyRowValidation(sheet, targetRowIdx);
 
     return ContentService.createTextOutput(JSON.stringify({
       status: "success",
       drive_link: fileUrl,
       folder: "Accounting/" + data.year + "/" + data.month,
-      row_index: newRowIdx
+      row_index: targetRowIdx
     })).setMimeType(ContentService.MimeType.JSON);
 
   } catch (err) {

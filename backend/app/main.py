@@ -51,10 +51,10 @@ ai_extractor = AIExtractor()
 drive_service = GoogleDriveService()
 sheets_service = GoogleSheetsService()
 
-def background_cloud_sync(receipt_obj: ReceiptData, image_bytes: bytes, webhook_url: Optional[str] = None):
+def background_cloud_sync(receipt_obj: ReceiptData, image_bytes: bytes, webhook_url: Optional[str] = None, action: str = "append"):
     """Asynchronous background sync to Google Drive & Google Sheet"""
     try:
-        sheets_service.sync_to_google_cloud(receipt_obj, image_bytes=image_bytes, webhook_url_override=webhook_url)
+        sheets_service.sync_to_google_cloud(receipt_obj, image_bytes=image_bytes, webhook_url_override=webhook_url, action=action)
         receipt_obj.status = "Synced Live to Google Sheet & Drive"
         save_receipts()
     except Exception as e:
@@ -257,7 +257,7 @@ def update_receipt(
             
             target_hook = (webhook_url or settings.google_apps_script_url or "").strip()
             if target_hook:
-                background_tasks.add_task(background_cloud_sync, updated, b"", target_hook)
+                background_tasks.add_task(background_cloud_sync, updated, b"", target_hook, "update")
             
             return {"success": True, "receipt": updated}
     raise HTTPException(status_code=404, detail="Receipt not found")

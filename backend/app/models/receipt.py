@@ -26,6 +26,7 @@ class ReceiptData(BaseModel):
     image_url: Optional[str] = Field(default="", description="Local path or URL to the enhanced receipt image")
     drive_link: Optional[str] = Field(default="", description="Google Drive shareable link")
     drive_folder: Optional[str] = Field(default="", description="Google Drive folder path (e.g. Receipts/2026/08_August)")
+    sheet_row_index: Optional[int] = Field(default=None, description="Google Sheet row index for updating existing records in place")
     status: Optional[str] = Field(default="Extracted", description="Status: Extracted, Verified, Synced")
     created_at: Optional[str] = Field(default_factory=lambda: datetime.now().isoformat())
 

@@ -38,7 +38,8 @@ class GoogleSheetsService:
         self, 
         receipt: ReceiptData, 
         image_bytes: Optional[bytes] = None,
-        webhook_url_override: Optional[str] = None
+        webhook_url_override: Optional[str] = None,
+        action: str = "append"
     ) -> Dict[str, str]:
         """
         Exact 11-column structure matching user's Google Sheet:
@@ -108,6 +109,8 @@ class GoogleSheetsService:
         ]
 
         payload = {
+            "action": action,
+            "row_index": receipt.sheet_row_index,
             "year": year_str,
             "month": month_str,
             "filename": filename,
@@ -139,6 +142,8 @@ class GoogleSheetsService:
                             cloud_result["status"] = "synced_live"
                             cloud_result["drive_link"] = res_json.get("drive_link", "")
                             cloud_result["folder"] = res_json.get("folder", cloud_result["folder"])
+                            if res_json.get("row_index"):
+                                receipt.sheet_row_index = int(res_json["row_index"])
                             receipt.drive_link = cloud_result["drive_link"]
                             receipt.drive_folder = f"Google Drive > {cloud_result['folder']}"
                     except Exception:

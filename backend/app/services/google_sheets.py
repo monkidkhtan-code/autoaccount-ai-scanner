@@ -55,6 +55,12 @@ class GoogleSheetsService:
         Col K: Image Link (Google Drive Link)
         """
         target_webhook = (webhook_url_override or self.webhook_url or "").strip()
+        
+        # Safeguard: never sync error states to Google Sheets
+        if "error" in (receipt.merchant_name or "").lower() or "ai extraction" in (receipt.merchant_name or "").lower():
+            print(f"[GoogleSheetsService] Aborting sync: receipt contains error status '{receipt.merchant_name}'")
+            return {"status": "error_aborted", "drive_link": "", "folder": ""}
+
         now = datetime.now()
         log_time_str = now.strftime("%d/%m/%Y %H:%M:%S")
 

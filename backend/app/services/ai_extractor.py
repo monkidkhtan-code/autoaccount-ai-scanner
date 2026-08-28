@@ -28,7 +28,7 @@ class AIExtractor:
                 merchant_name="[API Key Missing]",
                 item_description="Please enter your Gemini API Key in Settings",
                 reference_no="",
-                category="General Expenses",
+                category="Plant Inputs",
                 currency="MYR",
                 total_amount=0.0,
                 notes="Enter your Gemini API Key in Settings."
@@ -43,7 +43,7 @@ class AIExtractor:
   "item_description": "Summary of items or service purchased",
   "receipt_date": "YYYY-MM-DD",
   "reference_no": "Invoice or Receipt No",
-  "category": "Accounting category (e.g. Plant Inputs, Upkeep of Vehicles, Petrol, Salaries, Office Supplies, General Expenses)",
+  "category": "Accounting category (e.g. Plant Inputs, Upkeep of Vehicles, Petrol, Salaries, Office Supplies, Staff Welfare)",
   "currency": "MYR",
   "subtotal": 0.0,
   "tax_amount": 0.0,
@@ -152,7 +152,7 @@ Return pure JSON only."""
                 else:
                     pm = "Cash"
 
-                category_val = str(parsed.get("category", "General Expenses") or "General Expenses").strip()
+                category_val = str(parsed.get("category", "Plant Inputs") or "Plant Inputs").strip()
                 item_desc = str(parsed.get("item_description", "") or "").strip()
                 if not item_desc and item_names:
                     item_desc = ", ".join(item_names)
@@ -189,7 +189,7 @@ Return pure JSON only."""
             merchant_name="AI Extraction Error",
             item_description=f"Error: {last_error}",
             reference_no="",
-            category="General Expenses",
+            category="Plant Inputs",
             currency="MYR",
             total_amount=0.0,
             notes=str(last_error)

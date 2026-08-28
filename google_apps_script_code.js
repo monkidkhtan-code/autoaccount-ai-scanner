@@ -24,7 +24,6 @@ var PAYMENT_MODES = [
 ];
 
 var FARM_CATEGORIES = [
-  "General Expenses",
   "Sales of Chilies",
   "Plant Inputs",
   "Packing Materials",
@@ -91,7 +90,7 @@ function doPost(e) {
       data.total_amount || 0,                  // Col G: Amount
       "",                                      // Col H: [Blank]
       "",                                      // Col I: [Blank]
-      data.category || "General Expenses",     // Col J: Category
+      data.category || "Plant Inputs",         // Col J: Category
       fileUrl                                  // Col K: Image Link
     ];
 

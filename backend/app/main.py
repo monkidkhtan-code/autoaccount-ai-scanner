@@ -196,7 +196,7 @@ async def save_extracted_receipt(
             merchant_name=str(parsed.get("merchant_name") or "Unknown Merchant"),
             item_description=str(parsed.get("item_description") or ""),
             reference_no=str(parsed.get("reference_no") or ""),
-            category=str(parsed.get("category") or "General Expenses"),
+            category=str(parsed.get("category") or "Plant Inputs"),
             currency=str(parsed.get("currency") or "MYR"),
             subtotal=float(parsed.get("subtotal", 0.0) or 0.0),
             tax_amount=float(parsed.get("tax_amount", 0.0) or 0.0),

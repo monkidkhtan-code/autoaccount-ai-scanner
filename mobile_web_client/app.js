@@ -9,7 +9,6 @@ let userGeminiApiKey = localStorage.getItem("gemini_api_key") || "";
 
 // Standard Universal Accounting Categories (Business, Trade, Transport, Operations, Agriculture)
 const ACCOUNTING_CATEGORIES = [
-  "General Expenses",
   "Plant Inputs",
   "Packing Materials",
   "Salaries",
@@ -22,6 +21,7 @@ const ACCOUNTING_CATEGORIES = [
   "Water",
   "Telephone & Internet",
   "Office Supplies & Stationery",
+  "Upkeep of Farm",
   "Upkeep of Vehicles",
   "Upkeep of Equipment & Tools",
   "Repair & Maintenance",
@@ -652,7 +652,7 @@ async function extractDirectWithGemini(base64Image, apiKey) {
   "item_description": "Summary of items or service purchased",
   "receipt_date": "YYYY-MM-DD",
   "reference_no": "Invoice or Receipt No",
-  "category": "Accounting category (e.g. Plant Inputs, Upkeep of Vehicles, Petrol, Salaries, Office Supplies, General Expenses)",
+  "category": "Accounting category (e.g. Plant Inputs, Upkeep of Vehicles, Petrol, Salaries, Office Supplies, Staff Welfare)",
   "currency": "MYR",
   "subtotal": 0.0,
   "tax_amount": 0.0,
@@ -853,7 +853,7 @@ function populateReviewForm(receipt) {
   document.getElementById("field-ref").value = receipt.reference_no || "";
   
   const catSelect = document.getElementById("field-category");
-  catSelect.value = receipt.category || "General Expenses";
+  catSelect.value = receipt.category || "Plant Inputs";
   if (!catSelect.value) {
     catSelect.selectedIndex = 0;
   }

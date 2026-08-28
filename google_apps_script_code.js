@@ -1,17 +1,17 @@
 /**
- * Google Apps Script for AutoAccount AI - Farm Accounting Hub
+ * Google Apps Script for AutoAccount AI - Multi-Company Scanner & Expense Ledger
  * 
  * Arranges columns exactly as requested:
  * Col A: Data Entry Log Time (DD/MM/YYYY HH:mm:ss)
  * Col B: Date (DD/MM/YYYY)
  * Col C: Particulars (Merchant Name - Item Description)
- * Col D: Mode of Payment (Dropdown: Cash, Credit Card, TnG, ShopeePay)
+ * Col D: Mode of Payment (Dropdown: Cash, Credit Card, TnG, ShopeePay, Bank Transfer)
  * Col E: Cheque No./ Reference No./ Invoice No.
  * Col F: [Blank]
  * Col G: Amount
  * Col H: [Blank]
  * Col I: [Blank]
- * Col J: Category (Dropdown with 32 Farm Accounting Categories)
+ * Col J: Category (Dropdown with Accounting Categories)
  * Col K: Image Link (Google Drive Receipt Link)
  */
 
@@ -19,10 +19,12 @@ var PAYMENT_MODES = [
   "Cash",
   "Credit Card",
   "TnG",
-  "ShopeePay"
+  "ShopeePay",
+  "Bank Transfer"
 ];
 
 var FARM_CATEGORIES = [
+  "General Expenses",
   "Sales of Chilies",
   "Plant Inputs",
   "Packing Materials",
@@ -67,7 +69,7 @@ function doPost(e) {
     var yearFolder = getOrCreateFolder(accountingFolder, data.year || "2026");
     var monthFolder = getOrCreateFolder(yearFolder, data.month || "08_August");
 
-    // 2. Save high-res receipt image to Google Drive folder
+    // 2. Save high-res receipt image if provided
     var fileUrl = "";
     if (data.image_base64 && data.image_base64.length > 0) {
       var decodedImage = Utilities.base64Decode(data.image_base64);
@@ -76,10 +78,7 @@ function doPost(e) {
       fileUrl = file.getUrl();
     }
 
-    // 3. Append row to Google Sheet
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    
-    // Timestamp for Data Entry Log Time
     var nowFormatted = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT+8", "dd/MM/yyyy HH:mm:ss");
 
     var row = data.row_data || [
@@ -92,11 +91,10 @@ function doPost(e) {
       data.total_amount || 0,                  // Col G: Amount
       "",                                      // Col H: [Blank]
       "",                                      // Col I: [Blank]
-      data.category || "Upkeep of Vehicles",   // Col J: Category
+      data.category || "General Expenses",     // Col J: Category
       fileUrl                                  // Col K: Image Link
     ];
 
-    // Put file URL into Column K (index 10)
     if (row.length >= 11) {
       row[10] = fileUrl;
     } else {
@@ -108,21 +106,64 @@ function doPost(e) {
 
     var targetRowIdx = 0;
 
-    // If update action is specified and valid row index provided, overwrite in place
-    if (data.action === "update" && data.row_index && data.row_index > 1 && data.row_index <= sheet.getLastRow()) {
-      targetRowIdx = parseInt(data.row_index, 10);
-      var currentValues = sheet.getRange(targetRowIdx, 1, 1, 11).getValues()[0];
-      // Keep original Entry Log Time if already exists
-      if (currentValues[0]) {
-        row[0] = currentValues[0];
+    // --- IN-PLACE UPDATE LOGIC ---
+    if (data.action === "update") {
+      // 1. Try finding by row_index
+      if (data.row_index && data.row_index > 1 && data.row_index <= sheet.getLastRow()) {
+        targetRowIdx = parseInt(data.row_index, 10);
       }
-      // Preserve existing image link if not re-uploaded
-      if (!fileUrl && currentValues[10]) {
-        row[10] = currentValues[10];
-        fileUrl = currentValues[10];
+
+      // 2. Try finding by Reference No in Column E
+      if (!targetRowIdx && data.reference_no && data.reference_no.toString().trim().length > 0) {
+        var lastRow = sheet.getLastRow();
+        if (lastRow > 1) {
+          var refValues = sheet.getRange(2, 5, lastRow - 1, 1).getValues();
+          for (var r = refValues.length - 1; r >= 0; r--) {
+            if (refValues[r][0] && refValues[r][0].toString().trim() === data.reference_no.toString().trim()) {
+              targetRowIdx = r + 2;
+              break;
+            }
+          }
+        }
       }
-      sheet.getRange(targetRowIdx, 1, 1, 11).setValues([row]);
+
+      // 3. Try finding by Log Time in Column A
+      if (!targetRowIdx && data.log_time && data.log_time.toString().trim().length > 0) {
+        var lastRow = sheet.getLastRow();
+        if (lastRow > 1) {
+          var logValues = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+          for (var r = logValues.length - 1; r >= 0; r--) {
+            if (logValues[r][0] && logValues[r][0].toString().trim() === data.log_time.toString().trim()) {
+              targetRowIdx = r + 2;
+              break;
+            }
+          }
+        }
+      }
+
+      // 4. If updating right after scanning, update the last row
+      if (!targetRowIdx && sheet.getLastRow() > 1) {
+        targetRowIdx = sheet.getLastRow();
+      }
+
+      if (targetRowIdx > 1 && targetRowIdx <= sheet.getLastRow()) {
+        var currentValues = sheet.getRange(targetRowIdx, 1, 1, 11).getValues()[0];
+        // Preserve original Entry Log Time
+        if (currentValues[0]) {
+          row[0] = currentValues[0];
+        }
+        // Preserve existing receipt image URL if not re-uploaded
+        if (!fileUrl && currentValues[10]) {
+          row[10] = currentValues[10];
+          fileUrl = currentValues[10];
+        }
+        sheet.getRange(targetRowIdx, 1, 1, 11).setValues([row]);
+      } else {
+        sheet.appendRow(row);
+        targetRowIdx = sheet.getLastRow();
+      }
     } else {
+      // Normal Scan: Append New Row
       sheet.appendRow(row);
       targetRowIdx = sheet.getLastRow();
     }
@@ -133,7 +174,7 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify({
       status: "success",
       drive_link: fileUrl,
-      folder: "Accounting/" + data.year + "/" + data.month,
+      folder: "Accounting/" + (data.year || "2026") + "/" + (data.month || "08_August"),
       row_index: targetRowIdx
     })).setMimeType(ContentService.MimeType.JSON);
 
@@ -147,14 +188,12 @@ function doPost(e) {
 
 function applyRowValidation(sheet, rowIdx) {
   try {
-    // Mode of Payment is Column D (col 4)
     var rulePayment = SpreadsheetApp.newDataValidation()
       .requireValueInList(PAYMENT_MODES, true)
       .setAllowInvalid(true)
       .build();
     sheet.getRange(rowIdx, 4).setDataValidation(rulePayment);
 
-    // Category is Column J (col 10)
     var ruleCategory = SpreadsheetApp.newDataValidation()
       .requireValueInList(FARM_CATEGORIES, true)
       .setAllowInvalid(true)

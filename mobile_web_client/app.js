@@ -924,7 +924,11 @@ async function updateReceiptRecord() {
       body: JSON.stringify(currentReceiptData)
     });
     if (res.ok) {
-      alert(`Receipt updated & synced to ${activeComp.name} Google Sheet!`);
+      const data = await res.json();
+      if (data.receipt) {
+        currentReceiptData = data.receipt;
+      }
+      alert(`Receipt updated & synced in place to ${activeComp.name} Google Sheet!`);
       loadReceiptsList();
     }
   } catch (e) {

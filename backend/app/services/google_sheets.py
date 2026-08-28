@@ -63,7 +63,9 @@ class GoogleSheetsService:
             return {"status": "error_aborted", "drive_link": "", "folder": ""}
 
         now = datetime.now()
-        log_time_str = now.strftime("%d/%m/%Y %H:%M:%S")
+        if not receipt.log_time:
+            receipt.log_time = now.strftime("%d/%m/%Y %H:%M:%S")
+        log_time_str = receipt.log_time
 
         # Combine Merchant Name + Item Description into Particulars
         m_name = (receipt.merchant_name or "").strip()

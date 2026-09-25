@@ -676,7 +676,13 @@ Return pure JSON only.`;
     }
   };
 
-  const models = ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.5-flash"];
+  const models = [
+    "gemini-3.5-flash-lite",
+    "gemini-flash-lite-latest",
+    "gemini-3.1-flash-lite",
+    "gemini-3.1-flash-lite-preview",
+    "gemini-3.6-flash"
+  ];
   let lastErr = null;
 
   for (const m of models) {
@@ -689,11 +695,13 @@ Return pure JSON only.`;
       });
 
       if (!response.ok) {
+        lastErr = new Error(`Model ${m} returned HTTP ${response.status}`);
         continue;
       }
 
       const jsonRes = await response.json();
       if (!jsonRes.candidates || !jsonRes.candidates[0] || !jsonRes.candidates[0].content) {
+        lastErr = new Error(`Model ${m} returned empty candidates`);
         continue;
       }
 
@@ -729,8 +737,8 @@ async function processAndExtract() {
   const executeTurbo = async (rawImageBlob) => {
     const t0 = performance.now();
     try {
-      // 1. Client-side ultra-fast compression (drops image to ~60KB)
-      const compressedBlob = await compressImageForUpload(rawImageBlob, 900, 0.80);
+      // 1. High-clarity compression preserves small fonts & thermal print
+      const compressedBlob = await compressImageForUpload(rawImageBlob, 1500, 0.92);
       let parsedReceipt = null;
 
       // 2. Direct Turbo Call if API key is in browser

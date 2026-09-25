@@ -34,7 +34,7 @@ class AIExtractor:
                 notes="Enter your Gemini API Key in Settings."
             )
 
-        optimized_bytes = ImageProcessor.optimize_for_vision(image_bytes, max_dim=900)
+        optimized_bytes = ImageProcessor.optimize_for_vision(image_bytes, max_dim=1500)
         b64_image = base64.b64encode(optimized_bytes).decode("utf-8")
 
         prompt = """Extract receipt JSON:
@@ -53,12 +53,13 @@ class AIExtractor:
 }
 Return pure JSON only."""
 
-        # Priority order: gemini-3.5-flash-lite is the fastest vision model
+        # Priority pool: High-speed, non-overloaded vision engines
         candidate_models = [
             'gemini-3.5-flash-lite',
-            'gemini-3.6-flash',
-            'gemini-3.5-flash',
-            'gemini-flash-latest'
+            'gemini-flash-lite-latest',
+            'gemini-3.1-flash-lite',
+            'gemini-3.1-flash-lite-preview',
+            'gemini-3.6-flash'
         ]
 
         last_error = None

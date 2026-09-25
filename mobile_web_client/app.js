@@ -773,6 +773,75 @@ Return pure JSON only.`;
 
 // --- SCAN AND EXTRACTION WITH TARGET COMPANY WEBHOOK ---
 
+let extractionLoadingTimer = null;
+
+function startLoadingAnimation() {
+  const loadingCard = document.getElementById("loading-card");
+  const resultCard = document.getElementById("result-card");
+  const previewContainer = document.getElementById("image-preview-container");
+
+  if (previewContainer) previewContainer.classList.add("hidden");
+  if (resultCard) resultCard.classList.add("hidden");
+  if (loadingCard) {
+    loadingCard.classList.remove("hidden");
+    loadingCard.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  const titleEl = document.getElementById("loading-title");
+  const descEl = document.getElementById("loading-desc");
+  const progressEl = document.getElementById("loading-progress-bar");
+  const secondsEl = document.getElementById("loading-elapsed-seconds");
+
+  const stepOcr = document.getElementById("step-ocr");
+  const stepParse = document.getElementById("step-parse");
+  const stepSync = document.getElementById("step-sync");
+
+  const startTime = Date.now();
+  if (extractionLoadingTimer) clearInterval(extractionLoadingTimer);
+
+  extractionLoadingTimer = setInterval(() => {
+    const elapsed = (Date.now() - startTime) / 1000;
+    if (secondsEl) secondsEl.innerText = elapsed.toFixed(1) + "s";
+
+    if (elapsed < 0.8) {
+      if (titleEl) titleEl.innerText = "Scanning Document Visuals...";
+      if (descEl) descEl.innerText = "Analyzing receipt sharpness, header, & contrast...";
+      if (progressEl) progressEl.style.width = "40%";
+      if (stepOcr) stepOcr.className = "flex flex-col items-center p-2 rounded-xl bg-emerald-100 border border-emerald-400 text-emerald-800 font-bold transition-all shadow-sm";
+      if (stepParse) stepParse.className = "flex flex-col items-center p-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-400 font-semibold transition-all";
+      if (stepSync) stepSync.className = "flex flex-col items-center p-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-400 font-semibold transition-all";
+    } else if (elapsed < 1.6) {
+      if (titleEl) titleEl.innerText = "Reading Line Items & Figures...";
+      if (descEl) descEl.innerText = "Extracting prices, taxes, categories, & payment methods...";
+      if (progressEl) progressEl.style.width = "75%";
+      if (stepOcr) stepOcr.className = "flex flex-col items-center p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold transition-all";
+      if (stepParse) stepParse.className = "flex flex-col items-center p-2 rounded-xl bg-teal-100 border border-teal-400 text-teal-800 font-bold transition-all shadow-sm";
+      if (stepSync) stepSync.className = "flex flex-col items-center p-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-400 font-semibold transition-all";
+    } else {
+      if (titleEl) titleEl.innerText = "Preparing Accounting Records...";
+      if (descEl) descEl.innerText = "Structuring line items & preparing cloud sync...";
+      if (progressEl) progressEl.style.width = "95%";
+      if (stepOcr) stepOcr.className = "flex flex-col items-center p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold transition-all";
+      if (stepParse) stepParse.className = "flex flex-col items-center p-2 rounded-xl bg-teal-50 border border-teal-200 text-teal-700 font-semibold transition-all";
+      if (stepSync) stepSync.className = "flex flex-col items-center p-2 rounded-xl bg-sky-100 border border-sky-400 text-sky-800 font-bold transition-all shadow-sm";
+    }
+  }, 100);
+}
+
+function stopLoadingAnimation(success = true) {
+  if (extractionLoadingTimer) {
+    clearInterval(extractionLoadingTimer);
+    extractionLoadingTimer = null;
+  }
+  const loadingCard = document.getElementById("loading-card");
+  if (loadingCard) loadingCard.classList.add("hidden");
+
+  if (!success) {
+    const previewContainer = document.getElementById("image-preview-container");
+    if (previewContainer) previewContainer.classList.remove("hidden");
+  }
+}
+
 async function processAndExtract() {
   if (!originalImageFile && !currentCroppedBlob) {
     alert("Please capture or choose a receipt photo first.");
@@ -780,11 +849,9 @@ async function processAndExtract() {
   }
 
   const activeComp = getActiveCompany();
-
-  const loadingCard = document.getElementById("loading-card");
   const resultCard = document.getElementById("result-card");
-  loadingCard.classList.remove("hidden");
-  resultCard.classList.add("hidden");
+
+  startLoadingAnimation();
 
   const executeTurbo = async (rawImageBlob) => {
     const t0 = performance.now();
@@ -812,7 +879,7 @@ async function processAndExtract() {
         currentReceiptData = parsedReceipt;
         populateReviewForm(parsedReceipt);
 
-        loadingCard.classList.add("hidden");
+        stopLoadingAnimation(true);
         resultCard.classList.remove("hidden");
         resultCard.scrollIntoView({ behavior: "smooth" });
 
@@ -862,14 +929,14 @@ async function processAndExtract() {
       currentReceiptData = data.receipt;
       populateReviewForm(currentReceiptData);
 
-      loadingCard.classList.add("hidden");
+      stopLoadingAnimation(true);
       resultCard.classList.remove("hidden");
       resultCard.scrollIntoView({ behavior: "smooth" });
 
       loadReceiptsList();
 
     } catch (err) {
-      loadingCard.classList.add("hidden");
+      stopLoadingAnimation(false);
       alert("Extraction error: " + err.message);
       console.error(err);
     }

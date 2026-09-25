@@ -551,6 +551,8 @@ function retakePhoto() {
   document.getElementById("upload-prompt").classList.remove("hidden");
   document.getElementById("image-preview-container").classList.add("hidden");
   document.getElementById("result-card").classList.add("hidden");
+  // Directly trigger camera input viewfinder
+  triggerCameraInput();
 }
 
 async function loadSampleReceipt() {

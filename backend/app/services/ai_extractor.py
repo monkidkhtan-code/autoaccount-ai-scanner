@@ -68,7 +68,7 @@ Return pure JSON only."""
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
                 gen_config = {
                     "temperature": 0.0,
-                    "maxOutputTokens": 350,
+                    "maxOutputTokens": 1200,
                     "responseMimeType": "application/json"
                 }
 
@@ -104,7 +104,43 @@ Return pure JSON only."""
                     raw_text = raw_text[:-3]
                 raw_text = raw_text.strip()
 
-                parsed = json.loads(raw_text)
+                parsed = None
+                try:
+                    parsed = json.loads(raw_text)
+                except Exception:
+                    # Repair open quotes and brackets
+                    try:
+                        temp = raw_text
+                        if temp.count('"') % 2 != 0:
+                            temp += '"'
+                        open_brackets = temp.count('[') - temp.count(']')
+                        open_braces = temp.count('{') - temp.count('}')
+                        temp += ']' * max(0, open_brackets)
+                        temp += '}' * max(0, open_braces)
+                        parsed = json.loads(temp)
+                    except Exception:
+                        pass
+
+                if not parsed:
+                    m_name = re.search(r'"merchant_name"\s*:\s*"([^"]+)"', raw_text)
+                    amt = re.search(r'"total_amount"\s*:\s*([0-9.]+)', raw_text)
+                    dt = re.search(r'"receipt_date"\s*:\s*"([^"]+)"', raw_text)
+                    ref = re.search(r'"reference_no"\s*:\s*"([^"]+)"', raw_text)
+                    desc = re.search(r'"item_description"\s*:\s*"([^"]+)"', raw_text)
+                    cat = re.search(r'"category"\s*:\s*"([^"]+)"', raw_text)
+                    pm_found = re.search(r'"payment_method"\s*:\s*"([^"]+)"', raw_text)
+
+                    parsed = {
+                        "merchant_name": m_name.group(1) if m_name else "Receipt",
+                        "item_description": desc.group(1) if desc else "",
+                        "receipt_date": dt.group(1) if dt else datetime.now().strftime("%Y-%m-%d"),
+                        "reference_no": ref.group(1) if ref else "",
+                        "total_amount": float(amt.group(1)) if amt else 0.0,
+                        "category": cat.group(1) if cat else "Plant Inputs",
+                        "payment_method": pm_found.group(1) if pm_found else "Cash",
+                        "currency": "MYR",
+                        "items": []
+                    }
                 
                 items = []
                 item_names = []

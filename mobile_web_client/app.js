@@ -643,6 +643,57 @@ function blobToBase64(blob) {
   });
 }
 
+function safeParseJson(rawText) {
+  if (!rawText) return null;
+  let cleaned = rawText.trim();
+  if (cleaned.startsWith("```json")) cleaned = cleaned.substring(7);
+  if (cleaned.startsWith("```")) cleaned = cleaned.substring(3);
+  if (cleaned.endsWith("```")) cleaned = cleaned.substring(0, cleaned.length - 3);
+  cleaned = cleaned.trim();
+
+  // 1. Direct JSON parse
+  try {
+    return JSON.parse(cleaned);
+  } catch (e) {}
+
+  // 2. Repair open quotes, braces, brackets
+  try {
+    let temp = cleaned;
+    const quotes = (temp.match(/"/g) || []).length;
+    if (quotes % 2 !== 0) temp += '"';
+    const openBrackets = (temp.match(/\[/g) || []).length - (temp.match(/\]/g) || []).length;
+    const openBraces = (temp.match(/\{/g) || []).length - (temp.match(/\}/g) || []).length;
+    if (openBrackets > 0) temp += ']'.repeat(openBrackets);
+    if (openBraces > 0) temp += '}'.repeat(openBraces);
+    return JSON.parse(temp);
+  } catch (e) {}
+
+  // 3. Fallback regex extraction
+  const mName = cleaned.match(/"merchant_name"\s*:\s*"([^"]+)"/);
+  const amt = cleaned.match(/"total_amount"\s*:\s*([0-9.]+)/);
+  const dt = cleaned.match(/"receipt_date"\s*:\s*"([^"]+)"/);
+  const ref = cleaned.match(/"reference_no"\s*:\s*"([^"]+)"/);
+  const desc = cleaned.match(/"item_description"\s*:\s*"([^"]+)"/);
+  const cat = cleaned.match(/"category"\s*:\s*"([^"]+)"/);
+  const pm = cleaned.match(/"payment_method"\s*:\s*"([^"]+)"/);
+
+  if (mName || amt || dt) {
+    return {
+      merchant_name: mName ? mName[1] : "Receipt",
+      item_description: desc ? desc[1] : "",
+      receipt_date: dt ? dt[1] : new Date().toISOString().split('T')[0],
+      reference_no: ref ? ref[1] : "",
+      total_amount: amt ? parseFloat(amt[1]) : 0,
+      category: cat ? cat[1] : "Plant Inputs",
+      payment_method: pm ? pm[1] : "Cash",
+      currency: "MYR",
+      items: []
+    };
+  }
+
+  return null;
+}
+
 // --- DIRECT CLIENT TURBO EXTRACTION ENGINE (<1s LATENCY) ---
 
 async function extractDirectWithGemini(base64Image, apiKey) {
@@ -671,7 +722,7 @@ Return pure JSON only.`;
     }],
     generationConfig: {
       temperature: 0.0,
-      maxOutputTokens: 350,
+      maxOutputTokens: 1200,
       responseMimeType: "application/json"
     }
   };
@@ -705,12 +756,11 @@ Return pure JSON only.`;
         continue;
       }
 
-      let rawText = jsonRes.candidates[0].content.parts[0].text.trim();
-      if (rawText.startsWith("```json")) rawText = rawText.substring(7);
-      if (rawText.startsWith("```")) rawText = rawText.substring(3);
-      if (rawText.endsWith("```")) rawText = rawText.substring(0, rawText.length - 3);
-      
-      return JSON.parse(rawText.trim());
+      const rawText = jsonRes.candidates[0].content.parts[0].text;
+      const parsed = safeParseJson(rawText);
+      if (parsed) {
+        return parsed;
+      }
     } catch (e) {
       lastErr = e;
     }

@@ -2,15 +2,25 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AutoAccount AI - Multi-Company Scanner & Expense Ledger</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>AutoAccount AI - Smart Receipt Scanner</title>
+  <!-- PWA & Fullscreen App Meta -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="theme-color" content="#064e3b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="AutoAccount">
+  <meta name="mobile-web-app-capable" content="yes">
+
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- Cropper.js -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
-  <link rel="stylesheet" href="style.css?v=1.5.7">
+  <link rel="stylesheet" href="style.css?v=1.5.8">
   <style>
     /* Live Visual Image Filter Classes */
     .filter-preview-original { filter: none !important; }
@@ -19,28 +29,29 @@
     .filter-preview-color_boost { filter: saturate(160%) contrast(125%) brightness(102%) !important; }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans antialiased pb-20 md:pb-6">
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans antialiased pb-24 sm:pb-8">
 
-  <!-- Header with Multi-Company Switcher -->
-  <header class="bg-gradient-to-r from-emerald-800 via-teal-800 to-sky-800 text-white shadow-md sticky top-0 z-30">
+  <!-- Header with App Logo & Multi-Company Switcher -->
+  <header class="bg-gradient-to-r from-emerald-800 via-teal-800 to-sky-800 text-white shadow-md sticky top-0 z-30 pt-safe">
     <div class="max-w-5xl mx-auto px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-2.5">
       <div class="flex items-center justify-between w-full sm:w-auto">
         <div class="flex items-center space-x-2.5">
-          <div class="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-inner">
-            <i class="fa-solid fa-receipt text-lg text-yellow-300"></i>
-          </div>
+          <img src="logo.png" alt="AutoAccount Logo" class="w-9 h-9 rounded-xl object-contain shadow bg-white p-0.5 border border-white/20" />
           <div>
             <div class="flex items-center gap-1.5">
               <h1 class="font-bold text-base leading-tight tracking-tight">AutoAccount AI</h1>
-              <span class="text-3xs font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded text-emerald-100 border border-white/20">v1.5.7</span>
+              <span class="text-3xs font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded text-emerald-100 border border-white/20">v1.5.8</span>
             </div>
-            <p class="text-2xs text-emerald-100 font-medium">Multi-Company Scanner & Expense Ledger</p>
+            <p class="text-2xs text-emerald-100 font-medium">Smart Scanner & Expense Ledger</p>
           </div>
         </div>
 
         <div class="sm:hidden flex items-center gap-1.5">
+          <button type="button" id="btn-pwa-install-mobile" onclick="triggerPWAInstall()" class="hidden px-2.5 py-1 rounded-full text-2xs font-bold bg-amber-400 text-slate-900 shadow-sm animate-pulse flex items-center gap-1">
+            <i class="fa-solid fa-download"></i> Install
+          </button>
           <button type="button" onclick="openApiKeyModal()" id="btn-api-key-status-mobile" class="px-2 py-1 rounded-full text-2xs font-semibold bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
-            <i class="fa-solid fa-bolt text-yellow-300"></i> AI Key
+            <i class="fa-solid fa-bolt text-yellow-300"></i> Key
           </button>
           <button type="button" onclick="openCompanyModal()" class="px-2 py-1 rounded-full text-2xs font-semibold bg-sky-500/20 text-sky-200 border border-sky-400/30">
             <i class="fa-solid fa-building"></i>
@@ -455,15 +466,35 @@
   </main>
 
   <!-- App Footer with Versioning -->
-  <footer class="w-full text-center py-4 bg-slate-100 border-t border-slate-200 text-xs text-slate-500 mt-8 mb-6">
+  <footer class="hidden sm:block w-full text-center py-4 bg-slate-100 border-t border-slate-200 text-xs text-slate-500 mt-8 mb-6">
     <div class="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
       <p class="font-semibold text-slate-700">AutoAccount AI • Smart Scanner & Expense Ledger</p>
       <p class="flex items-center gap-2">
-        <span class="px-2.5 py-1 rounded-full bg-emerald-700 text-white font-mono font-bold text-2xs shadow-sm">Version 1.5.7 (Instant 0s Load Edition)</span>
+        <span class="px-2.5 py-1 rounded-full bg-emerald-700 text-white font-mono font-bold text-2xs shadow-sm">Version 1.5.8 (Native Fullscreen PWA Edition)</span>
         <span class="text-slate-400">• 24/7 Cloud Active</span>
       </p>
     </div>
   </footer>
+
+  <!-- Fixed Native Mobile Bottom App Navigation Bar -->
+  <nav class="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-2xl safe-bottom px-2 py-1.5 flex items-center justify-around">
+    <button type="button" onclick="switchTab('scan')" id="mob-tab-scan-btn" class="flex-1 flex flex-col items-center justify-center py-1 rounded-xl text-emerald-700 font-bold transition-all">
+      <i class="fa-solid fa-camera text-base text-emerald-600 mb-0.5"></i>
+      <span class="text-3xs tracking-tight">Scan</span>
+    </button>
+    <button type="button" onclick="switchTab('compile')" id="mob-tab-compile-btn" class="flex-1 flex flex-col items-center justify-center py-1 rounded-xl text-slate-500 font-semibold transition-all">
+      <i class="fa-solid fa-file-pdf text-base text-slate-400 mb-0.5"></i>
+      <span class="text-3xs tracking-tight">A4 Studio</span>
+    </button>
+    <button type="button" onclick="switchTab('ledger')" id="mob-tab-ledger-btn" class="flex-1 flex flex-col items-center justify-center py-1 rounded-xl text-slate-500 font-semibold transition-all">
+      <i class="fa-solid fa-table-cells text-base text-slate-400 mb-0.5"></i>
+      <span class="text-3xs tracking-tight">Ledger</span>
+    </button>
+    <button type="button" onclick="openCompanyModal()" class="flex-1 flex flex-col items-center justify-center py-1 rounded-xl text-slate-500 font-semibold transition-all">
+      <i class="fa-solid fa-building text-base text-sky-600 mb-0.5"></i>
+      <span class="text-3xs tracking-tight">Entity</span>
+    </button>
+  </nav>
 
   <!-- Multi-Company & Entity Profiles Modal -->
   <div id="company-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
@@ -531,6 +562,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=1.5.7"></script>
+  <script src="app.js?v=1.5.8"></script>
 </body>
 </html>

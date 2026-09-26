@@ -1256,12 +1256,24 @@ function switchTab(tabName) {
   tabs.forEach((t) => {
     const section = document.getElementById(`tab-${t}`);
     const btn = document.getElementById(`tab-${t}-btn`);
+    const mobBtn = document.getElementById(`mob-tab-${t}-btn`);
+
     if (t === tabName) {
-      section.classList.remove("hidden");
-      btn.className = "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 px-1 sm:px-3 rounded-xl font-bold text-xs transition-all shadow bg-white text-emerald-800";
+      if (section) section.classList.remove("hidden");
+      if (btn) btn.className = "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 px-1 sm:px-3 rounded-xl font-bold text-xs transition-all shadow bg-white text-emerald-800";
+      if (mobBtn) {
+        mobBtn.className = "flex-1 flex flex-col items-center justify-center py-1 rounded-xl text-emerald-700 font-bold transition-all bg-emerald-50/80";
+        const icon = mobBtn.querySelector("i");
+        if (icon) icon.className = icon.className.replace("text-slate-400", "text-emerald-600");
+      }
     } else {
-      section.classList.add("hidden");
-      btn.className = "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 px-1 sm:px-3 rounded-xl font-bold text-xs transition-all text-slate-600 hover:text-slate-900";
+      if (section) section.classList.add("hidden");
+      if (btn) btn.className = "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 px-1 sm:px-3 rounded-xl font-bold text-xs transition-all text-slate-600 hover:text-slate-900";
+      if (mobBtn) {
+        mobBtn.className = "flex-1 flex flex-col items-center justify-center py-1 rounded-xl text-slate-500 font-semibold transition-all";
+        const icon = mobBtn.querySelector("i");
+        if (icon) icon.className = icon.className.replace("text-emerald-600", "text-slate-400");
+      }
     }
   });
 
@@ -1269,3 +1281,37 @@ function switchTab(tabName) {
     loadReceiptsList();
   }
 }
+
+// --- PWA NATIVE APP INSTALLATION SUPPORT ---
+let deferredInstallPrompt = null;
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const mobBtn = document.getElementById("btn-pwa-install-mobile");
+  if (mobBtn) mobBtn.classList.remove("hidden");
+});
+
+async function triggerPWAInstall() {
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    const { outcome } = await deferredInstallPrompt.userChoice;
+    console.log(`User response to install prompt: ${outcome}`);
+    deferredInstallPrompt = null;
+    const mobBtn = document.getElementById("btn-pwa-install-mobile");
+    if (mobBtn) mobBtn.classList.add("hidden");
+  } else {
+    alert("To install as a full-screen app:\n\n📱 Android (Chrome): Tap the 3 dots (⋮) menu > 'Add to Home screen' or 'Install App'.\n\n🍎 iPhone (Safari): Tap the Share button (⬆️) > 'Add to Home Screen'.");
+  }
+}
+
+// Register PWA Service Worker
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("service-worker.js").then(
+      (reg) => console.log("PWA Service Worker registered with scope:", reg.scope),
+      (err) => console.warn("PWA Service Worker registration failed:", err)
+    );
+  });
+}
+

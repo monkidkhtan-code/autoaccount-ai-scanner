@@ -542,20 +542,39 @@ function applyLiveImageFilter() {
   cropperImg.classList.add(`filter-preview-${currentFilter}`);
 }
 
-function retakePhoto() {
+function resetScanStep(openCamera = false) {
   originalImageFile = null;
   currentCroppedBlob = null;
   if (cropperInstance) {
     cropperInstance.destroy();
     cropperInstance = null;
   }
-  document.getElementById("camera-input").value = "";
-  document.getElementById("gallery-input").value = "";
-  document.getElementById("upload-prompt").classList.remove("hidden");
-  document.getElementById("image-preview-container").classList.add("hidden");
-  document.getElementById("result-card").classList.add("hidden");
-  // Directly trigger camera input viewfinder
-  triggerCameraInput();
+  const camInput = document.getElementById("camera-input");
+  const galInput = document.getElementById("gallery-input");
+  if (camInput) camInput.value = "";
+  if (galInput) galInput.value = "";
+
+  const uploadPrompt = document.getElementById("upload-prompt");
+  const previewContainer = document.getElementById("image-preview-container");
+  const loadingCard = document.getElementById("loading-card");
+
+  if (uploadPrompt) uploadPrompt.classList.remove("hidden");
+  if (previewContainer) previewContainer.classList.add("hidden");
+  if (loadingCard) loadingCard.classList.add("hidden");
+
+  if (openCamera) {
+    triggerCameraInput();
+  }
+}
+
+function snapNextReceipt() {
+  resetScanStep(true);
+  const dropZone = document.getElementById("drop-zone");
+  if (dropZone) dropZone.scrollIntoView({ behavior: "smooth" });
+}
+
+function retakePhoto() {
+  resetScanStep(true);
 }
 
 async function loadSampleReceipt() {
@@ -839,7 +858,10 @@ function stopLoadingAnimation(success = true) {
   const loadingCard = document.getElementById("loading-card");
   if (loadingCard) loadingCard.classList.add("hidden");
 
-  if (!success) {
+  if (success) {
+    // Reset and restore Step 1 capture buttons immediately for the next receipt
+    resetScanStep(false);
+  } else {
     const previewContainer = document.getElementById("image-preview-container");
     if (previewContainer) previewContainer.classList.remove("hidden");
   }
@@ -1277,7 +1299,11 @@ function switchTab(tabName) {
     }
   });
 
-  if (tabName === "compile" || tabName === "ledger") {
+  if (tabName === "scan") {
+    if (!originalImageFile && !cropperInstance) {
+      resetScanStep(false);
+    }
+  } else if (tabName === "compile" || tabName === "ledger") {
     loadReceiptsList();
   }
 }

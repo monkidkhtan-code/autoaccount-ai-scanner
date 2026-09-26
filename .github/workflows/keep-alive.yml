@@ -1,0 +1,16 @@
+name: Keep Render Active (Zero Cold Starts)
+
+on:
+  schedule:
+    # Run every 10 minutes to prevent Render from sleeping after 15 min of inactivity
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping-render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Web Service
+        run: |
+          curl -sS -m 20 https://autoaccount-ai-scanner.onrender.com/health || curl -sS -m 20 https://autoaccount-ai-scanner.onrender.com/
+          echo "Ping successful at $(date)"

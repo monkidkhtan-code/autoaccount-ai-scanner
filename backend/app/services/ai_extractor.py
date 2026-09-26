@@ -43,7 +43,7 @@ class AIExtractor:
   "item_description": "Summary of items or service purchased",
   "receipt_date": "YYYY-MM-DD",
   "reference_no": "Invoice or Receipt No",
-  "category": "Accounting category (e.g. Plant Inputs, Upkeep of Vehicles, Petrol, Salaries, Office Supplies, Staff Welfare)",
+  "category": "Accounting category strictly chosen from: Sales of Chilies, Plant Inputs, Packing Materials, Salaries, Wages, Staff Welfare, Worker Permit, Petrol, Toll & Parking, Electricity, Water, Telephone & Internet, Upkeep of Farm, Upkeep of Farm Equipment, Upkeep of Vehicles, Insurance & Road tax, Printing & Stationery, Medical, Entertainment, License Fee, Training Fee, Professional Fee, Accounting Fee, Bank Charges, Depreciation, Farm House, Farm Equipment, Accum - Fixed Assets, Cash in Hand, Deposits & Prepayments, Accrual, Payback by worker for permit",
   "currency": "MYR",
   "subtotal": 0.0,
   "tax_amount": 0.0,

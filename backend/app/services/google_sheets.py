@@ -106,7 +106,7 @@ class GoogleSheetsService:
             receipt.total_amount,                   # Col G: Amount
             "",                                     # Col H: [Blank]
             "",                                     # Col I: [Blank]
-            receipt.category or "Upkeep of Vehicles", # Col J: Category
+            receipt.category or "Plant Inputs",     # Col J: Category
             ""                                      # Col K: Image Link (filled by Apps Script)
         ]
 
@@ -124,7 +124,7 @@ class GoogleSheetsService:
             "payment_method": receipt.payment_method or "Cash",
             "reference_no": receipt.reference_no or "",
             "total_amount": receipt.total_amount,
-            "category": receipt.category or "Upkeep of Vehicles"
+            "category": receipt.category or "Plant Inputs"
         }
 
         cloud_result = {"status": "local_only", "drive_link": "", "folder": f"Accounting/{year_str}/{month_str}"}

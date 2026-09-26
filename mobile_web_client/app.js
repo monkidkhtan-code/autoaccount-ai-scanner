@@ -7,40 +7,40 @@ let currentReceiptData = null;
 let allReceipts = [];
 let userGeminiApiKey = localStorage.getItem("gemini_api_key") || "";
 
-// Standard Universal Accounting Categories (Business, Trade, Transport, Operations, Agriculture)
+// Exact 32 Standard Accounting Categories matching User's Accounting Formulas
 const ACCOUNTING_CATEGORIES = [
+  "Sales of Chilies",
   "Plant Inputs",
   "Packing Materials",
   "Salaries",
   "Wages",
   "Staff Welfare",
   "Worker Permit",
-  "Petrol & Fuel",
+  "Petrol",
   "Toll & Parking",
   "Electricity",
   "Water",
   "Telephone & Internet",
-  "Office Supplies & Stationery",
   "Upkeep of Farm",
+  "Upkeep of Farm Equipment",
   "Upkeep of Vehicles",
-  "Upkeep of Equipment & Tools",
-  "Repair & Maintenance",
-  "Insurance & Road Tax",
-  "Printing & Advertising",
-  "Medical & Healthcare",
-  "Entertainment & Meals",
-  "License & Registrations",
+  "Insurance & Road tax",
+  "Printing & Stationery",
+  "Medical",
+  "Entertainment",
+  "License Fee",
   "Training Fee",
-  "Professional & Legal Fee",
-  "Accounting & Audit Fee",
-  "Bank Charges & Interest",
+  "Professional Fee",
+  "Accounting Fee",
+  "Bank Charges",
   "Depreciation",
-  "Property & Buildings",
-  "Machinery & Fixed Assets",
-  "Cash in Hand / Petty Cash",
+  "Farm House",
+  "Farm Equipment",
+  "Accum - Fixed Assets",
+  "Cash in Hand",
   "Deposits & Prepayments",
-  "Accruals",
-  "Sales Revenue"
+  "Accrual",
+  "Payback by worker for permit"
 ];
 
 // Multi-Company State
@@ -705,7 +705,7 @@ async function extractDirectWithGemini(base64Image, apiKey) {
   "item_description": "Summary of items or service purchased",
   "receipt_date": "YYYY-MM-DD",
   "reference_no": "Invoice or Receipt No",
-  "category": "Accounting category (e.g. Plant Inputs, Upkeep of Vehicles, Petrol, Salaries, Office Supplies, Staff Welfare)",
+  "category": "Accounting category strictly chosen from: Sales of Chilies, Plant Inputs, Packing Materials, Salaries, Wages, Staff Welfare, Worker Permit, Petrol, Toll & Parking, Electricity, Water, Telephone & Internet, Upkeep of Farm, Upkeep of Farm Equipment, Upkeep of Vehicles, Insurance & Road tax, Printing & Stationery, Medical, Entertainment, License Fee, Training Fee, Professional Fee, Accounting Fee, Bank Charges, Depreciation, Farm House, Farm Equipment, Accum - Fixed Assets, Cash in Hand, Deposits & Prepayments, Accrual, Payback by worker for permit",
   "currency": "MYR",
   "subtotal": 0.0,
   "tax_amount": 0.0,

@@ -4,6 +4,7 @@ import numpy as np
 from PIL import Image, ImageEnhance, ImageOps
 import io
 import uuid
+import gc
 
 class ImageProcessor:
     @staticmethod
@@ -25,6 +26,8 @@ class ImageProcessor:
         Detects receipt edges, straightens perspective, and adds a safety margin padding
         so text and borders are never clipped too tight.
         """
+        img = None
+        orig = None
         try:
             nparr = np.frombuffer(image_bytes, np.uint8)
             img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -95,13 +98,18 @@ class ImageProcessor:
                     warped = cv2.warpPerspective(orig, M, (maxWidth, maxHeight))
                     
                     _, encoded_img = cv2.imencode('.jpg', warped, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
-                    return encoded_img.tobytes()
+                    result = encoded_img.tobytes()
+                    del warped, encoded_img
+                    return result
 
             return image_bytes
 
         except Exception as e:
             print(f"[ImageProcessor] Auto-crop failed: {e}. Keeping original.")
             return image_bytes
+        finally:
+            del img, orig
+            gc.collect()
 
     @classmethod
     def optimize_for_vision(cls, image_bytes: bytes, max_dim: int = 1280) -> bytes:
@@ -109,6 +117,7 @@ class ImageProcessor:
         Resizes image to optimal AI vision resolution (1280px max) for ultra-fast processing
         while retaining 100% OCR readability.
         """
+        image = None
         try:
             image = Image.open(io.BytesIO(image_bytes))
             image = ImageOps.exif_transpose(image)
@@ -117,13 +126,26 @@ class ImageProcessor:
                 scale = max_dim / float(max(w, h))
                 new_w = int(w * scale)
                 new_h = int(h * scale)
-                image = image.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                resized_image = image.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                image.close()
+                image = resized_image
 
             buffer = io.BytesIO()
-            image.convert("RGB").save(buffer, format="JPEG", quality=88, optimize=True)
-            return buffer.getvalue()
+            rgb_image = image.convert("RGB")
+            rgb_image.save(buffer, format="JPEG", quality=88, optimize=True)
+            result = buffer.getvalue()
+            rgb_image.close()
+            buffer.close()
+            return result
         except Exception:
             return image_bytes
+        finally:
+            if image:
+                try:
+                    image.close()
+                except Exception:
+                    pass
+            gc.collect()
 
     @classmethod
     def enhance_receipt(
@@ -138,34 +160,53 @@ class ImageProcessor:
         if auto_crop:
             image_bytes = cls.auto_crop_and_deskew(image_bytes)
 
-        image = Image.open(io.BytesIO(image_bytes))
-        image = ImageOps.exif_transpose(image)
-        
-        if filter_mode == "bw_enhanced":
-            gray = image.convert("L")
-            enhancer = ImageEnhance.Contrast(gray)
-            high_contrast = enhancer.enhance(1.8)
-            sharpener = ImageEnhance.Sharpness(high_contrast)
-            output_image = sharpener.enhance(1.5).convert("RGB")
-        elif filter_mode == "grayscale":
-            gray = image.convert("L")
-            enhancer = ImageEnhance.Contrast(gray)
-            enhanced_gray = enhancer.enhance(1.4)
-            output_image = enhanced_gray.convert("RGB")
-        elif filter_mode == "color_boost":
-            color_enhancer = ImageEnhance.Color(image.convert("RGB"))
-            boosted = color_enhancer.enhance(1.3)
-            contrast_enhancer = ImageEnhance.Contrast(boosted)
-            output_image = contrast_enhancer.enhance(1.3)
-        elif filter_mode == "original":
-            output_image = image.convert("RGB")
-        else: # enhanced_clean
-            img_rgb = image.convert("RGB")
-            contrast_enhancer = ImageEnhance.Contrast(img_rgb)
-            high_contrast = contrast_enhancer.enhance(1.25)
-            sharpener = ImageEnhance.Sharpness(high_contrast)
-            output_image = sharpener.enhance(1.3)
+        image = None
+        output_image = None
+        try:
+            image = Image.open(io.BytesIO(image_bytes))
+            image = ImageOps.exif_transpose(image)
+            
+            if filter_mode == "bw_enhanced":
+                gray = image.convert("L")
+                enhancer = ImageEnhance.Contrast(gray)
+                high_contrast = enhancer.enhance(1.8)
+                sharpener = ImageEnhance.Sharpness(high_contrast)
+                output_image = sharpener.enhance(1.5).convert("RGB")
+                gray.close()
+            elif filter_mode == "grayscale":
+                gray = image.convert("L")
+                enhancer = ImageEnhance.Contrast(gray)
+                enhanced_gray = enhancer.enhance(1.4)
+                output_image = enhanced_gray.convert("RGB")
+                gray.close()
+            elif filter_mode == "color_boost":
+                color_enhancer = ImageEnhance.Color(image.convert("RGB"))
+                boosted = color_enhancer.enhance(1.3)
+                contrast_enhancer = ImageEnhance.Contrast(boosted)
+                output_image = contrast_enhancer.enhance(1.3)
+            elif filter_mode == "original":
+                output_image = image.convert("RGB")
+            else: # enhanced_clean
+                img_rgb = image.convert("RGB")
+                contrast_enhancer = ImageEnhance.Contrast(img_rgb)
+                high_contrast = contrast_enhancer.enhance(1.25)
+                sharpener = ImageEnhance.Sharpness(high_contrast)
+                output_image = sharpener.enhance(1.3)
 
-        buffer = io.BytesIO()
-        output_image.save(buffer, format="JPEG", quality=95, optimize=True)
-        return buffer.getvalue()
+            buffer = io.BytesIO()
+            output_image.save(buffer, format="JPEG", quality=95, optimize=True)
+            result = buffer.getvalue()
+            buffer.close()
+            return result
+        finally:
+            if image:
+                try:
+                    image.close()
+                except Exception:
+                    pass
+            if output_image:
+                try:
+                    output_image.close()
+                except Exception:
+                    pass
+            gc.collect()

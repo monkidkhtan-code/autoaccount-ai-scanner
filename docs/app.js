@@ -303,6 +303,132 @@ async function saveApiKey() {
   alert("Gemini AI API Key saved!");
 }
 
+// --- MEMORY SAFETY & OBJECT URL LIFECYCLE MANAGEMENT ---
+const managedObjectURLs = new Set();
+
+function createManagedObjectURL(blobOrFile) {
+  if (!blobOrFile) return "";
+  const url = URL.createObjectURL(blobOrFile);
+  managedObjectURLs.add(url);
+  return url;
+}
+
+function revokeAllManagedObjectURLs() {
+  managedObjectURLs.forEach((url) => {
+    try {
+      URL.revokeObjectURL(url);
+    } catch (e) {}
+  });
+  managedObjectURLs.clear();
+}
+
+/**
+ * Pre-downscales large raw camera captures (12MP-48MP) to max 1600px
+ * immediately upon capture to prevent browser Out of Memory (OOM) crashes.
+ * Retains 100% OCR sharpness for small receipt text and invoice numbers.
+ */
+async function preprocessImageForMemorySafety(file, maxDimension = 1600) {
+  if (!file || !file.type.startsWith("image/")) return file;
+
+  return new Promise((resolve) => {
+    // 1. Hardware accelerated createImageBitmap path
+    if (typeof window.createImageBitmap === "function") {
+      createImageBitmap(file)
+        .then((bitmap) => {
+          let { width, height } = bitmap;
+          if (width <= maxDimension && height <= maxDimension) {
+            bitmap.close();
+            resolve(file);
+            return;
+          }
+
+          let newWidth = width;
+          let newHeight = height;
+          if (width > height) {
+            newHeight = Math.round((height * maxDimension) / width);
+            newWidth = maxDimension;
+          } else {
+            newWidth = Math.round((width * maxDimension) / height);
+            newHeight = maxDimension;
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = newWidth;
+          canvas.height = newHeight;
+          const ctx = canvas.getContext("2d");
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, newWidth, newHeight);
+          ctx.drawImage(bitmap, 0, 0, newWidth, newHeight);
+          bitmap.close();
+
+          canvas.toBlob((blob) => {
+            canvas.width = 1;
+            canvas.height = 1;
+            if (blob) {
+              const safeFile = new File([blob], file.name || "receipt.jpg", { type: "image/jpeg" });
+              resolve(safeFile);
+            } else {
+              resolve(file);
+            }
+          }, "image/jpeg", 0.92);
+        })
+        .catch(() => {
+          fallbackImagePreprocess(file, maxDimension, resolve);
+        });
+    } else {
+      fallbackImagePreprocess(file, maxDimension, resolve);
+    }
+  });
+}
+
+function fallbackImagePreprocess(file, maxDimension, resolve) {
+  try {
+    const img = new Image();
+    const tempUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(tempUrl);
+      let { width, height } = img;
+      if (width <= maxDimension && height <= maxDimension) {
+        resolve(file);
+        return;
+      }
+      let newWidth = width;
+      let newHeight = height;
+      if (width > height) {
+        newHeight = Math.round((height * maxDimension) / width);
+        newWidth = maxDimension;
+      } else {
+        newWidth = Math.round((width * maxDimension) / height);
+        newHeight = maxDimension;
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = newWidth;
+      canvas.height = newHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, newWidth, newHeight);
+      ctx.drawImage(img, 0, 0, newWidth, newHeight);
+      canvas.toBlob((blob) => {
+        canvas.width = 1;
+        canvas.height = 1;
+        if (blob) {
+          const safeFile = new File([blob], file.name || "receipt.jpg", { type: "image/jpeg" });
+          resolve(safeFile);
+        } else {
+          resolve(file);
+        }
+      }, "image/jpeg", 0.92);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(tempUrl);
+      resolve(file);
+    };
+    img.src = tempUrl;
+  } catch (e) {
+    resolve(file);
+  }
+}
+
 // --- FILE SELECTION & CROPPER ---
 
 function setupEventListeners() {
@@ -320,11 +446,12 @@ function setupEventListeners() {
   dropZone.addEventListener("dragleave", () => {
     dropZone.classList.remove("border-emerald-500", "bg-emerald-50/50");
   });
-  dropZone.addEventListener("drop", (e) => {
+  dropZone.addEventListener("drop", async (e) => {
     e.preventDefault();
     dropZone.classList.remove("border-emerald-500", "bg-emerald-50/50");
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      processSelectedFile(e.dataTransfer.files[0]);
+      const safeFile = await preprocessImageForMemorySafety(e.dataTransfer.files[0]);
+      processSelectedFile(safeFile);
     }
   });
 }
@@ -337,14 +464,17 @@ function triggerGalleryInput() {
   document.getElementById("gallery-input").click();
 }
 
-function handleFileSelect(e) {
+async function handleFileSelect(e) {
   if (e.target.files && e.target.files[0]) {
-    processSelectedFile(e.target.files[0]);
+    const rawFile = e.target.files[0];
+    const safeFile = await preprocessImageForMemorySafety(rawFile);
+    processSelectedFile(safeFile);
   }
 }
 
 function processSelectedFile(file) {
   if (!file) return;
+  revokeAllManagedObjectURLs();
   originalImageFile = file;
   currentCroppedBlob = null;
 
@@ -365,7 +495,7 @@ function processSelectedFile(file) {
     cropperInstance = null;
   }
 
-  const objectUrl = URL.createObjectURL(file);
+  const objectUrl = createManagedObjectURL(file);
 
   cropperImg.onload = function() {
     try {
@@ -438,21 +568,26 @@ function applyAndSaveCrop() {
 
     croppedCanvas.toBlob((blob) => {
       if (!blob) return;
+      revokeAllManagedObjectURLs();
       currentCroppedBlob = blob;
       
-      const croppedUrl = URL.createObjectURL(blob);
+      const croppedUrl = createManagedObjectURL(blob);
 
       if (cropperInstance) {
         cropperInstance.destroy();
         cropperInstance = null;
       }
 
+      // Explicitly free canvas buffer
+      croppedCanvas.width = 1;
+      croppedCanvas.height = 1;
+
       cropperImg.src = croppedUrl;
       updateCropStatus("cropped");
       document.getElementById("crop-controls-bar").classList.add("hidden");
       applyLiveImageFilter();
 
-    }, "image/jpeg", 0.95);
+    }, "image/jpeg", 0.92);
   } catch (err) {
     console.error("Crop error:", err);
     alert("Error cropping image: " + err.message);
@@ -545,10 +680,15 @@ function applyLiveImageFilter() {
 function resetScanStep(openCamera = false) {
   originalImageFile = null;
   currentCroppedBlob = null;
+  revokeAllManagedObjectURLs();
+
   if (cropperInstance) {
     cropperInstance.destroy();
     cropperInstance = null;
   }
+  const cropperImg = document.getElementById("cropper-image");
+  if (cropperImg) cropperImg.src = "";
+
   const camInput = document.getElementById("camera-input");
   const galInput = document.getElementById("gallery-input");
   if (camInput) camInput.value = "";
@@ -613,6 +753,8 @@ async function loadSampleReceipt() {
   ctx.fillText("======================================", 20, 345);
 
   canvas.toBlob((blob) => {
+    canvas.width = 1;
+    canvas.height = 1;
     const sampleFile = new File([blob], "sample_cash_bill.jpg", { type: "image/jpeg" });
     processSelectedFile(sampleFile);
   }, "image/jpeg");
@@ -624,7 +766,9 @@ async function compressImageForUpload(blobOrFile, maxDimension = 900, quality = 
   return new Promise((resolve) => {
     try {
       const img = new Image();
+      const tempUrl = URL.createObjectURL(blobOrFile);
       img.onload = () => {
+        URL.revokeObjectURL(tempUrl);
         let width = img.width;
         let height = img.height;
         if (width > maxDimension || height > maxDimension) {
@@ -644,11 +788,16 @@ async function compressImageForUpload(blobOrFile, maxDimension = 900, quality = 
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
         canvas.toBlob((blob) => {
+          canvas.width = 1;
+          canvas.height = 1;
           resolve(blob || blobOrFile);
         }, "image/jpeg", quality);
       };
-      img.onerror = () => resolve(blobOrFile);
-      img.src = URL.createObjectURL(blobOrFile);
+      img.onerror = () => {
+        URL.revokeObjectURL(tempUrl);
+        resolve(blobOrFile);
+      };
+      img.src = tempUrl;
     } catch (e) {
       resolve(blobOrFile);
     }
@@ -1046,11 +1195,19 @@ function downloadImageCopy() {
     return;
   }
   const link = document.createElement("a");
-  link.href = currentCroppedBlob ? URL.createObjectURL(currentCroppedBlob) : (currentReceiptData.image_url ? `${API_BASE_URL}/api/storage-image?path=${currentReceiptData.image_url}` : "");
-  link.download = `${currentReceiptData.merchant_name.replace(/\s+/g, '_')}_${currentReceiptData.receipt_date}.jpg`;
+  const tempUrl = currentCroppedBlob ? URL.createObjectURL(currentCroppedBlob) : (currentReceiptData.image_url ? `${API_BASE_URL}/api/storage-image?path=${currentReceiptData.image_url}` : "");
+  link.href = tempUrl;
+  link.download = `${(currentReceiptData.merchant_name || 'receipt').replace(/\s+/g, '_')}_${currentReceiptData.receipt_date || 'date'}.jpg`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  if (currentCroppedBlob && tempUrl.startsWith("blob:")) {
+    setTimeout(() => {
+      try {
+        URL.revokeObjectURL(tempUrl);
+      } catch (e) {}
+    }, 1000);
+  }
 }
 
 async function updateReceiptRecord() {

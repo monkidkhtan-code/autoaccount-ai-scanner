@@ -20,7 +20,7 @@
   <!-- Cropper.js -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
-  <link rel="stylesheet" href="style.css?v=1.6.2">
+  <link rel="stylesheet" href="style.css?v=1.6.3">
   <style>
     /* Live Visual Image Filter Classes */
     .filter-preview-original { filter: none !important; }
@@ -36,11 +36,11 @@
     <div class="max-w-5xl mx-auto px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-2.5">
       <div class="flex items-center justify-between w-full sm:w-auto">
         <div class="flex items-center space-x-3">
-          <img src="logo.png?v=1.6.2" alt="AutoAccount Logo" class="w-11 h-11 rounded-2xl object-cover shadow-md bg-white p-0.5 border-2 border-white/40 shrink-0" />
+          <img src="logo.png?v=1.6.3" alt="AutoAccount Logo" class="w-11 h-11 rounded-2xl object-cover shadow-md bg-white p-0.5 border-2 border-white/40 shrink-0" />
           <div>
             <div class="flex items-center gap-1.5">
               <h1 class="font-extrabold text-base sm:text-lg leading-tight tracking-tight">AutoAccount AI</h1>
-              <span class="text-3xs font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded text-emerald-100 border border-white/20">v1.6.2</span>
+              <span class="text-3xs font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded text-emerald-100 border border-white/20">v1.6.3</span>
             </div>
             <p class="text-2xs text-emerald-100 font-medium">Smart Scanner & Expense Ledger</p>
           </div>
@@ -177,35 +177,13 @@
               </button>
             </div>
             
-            <!-- Live Enhancement Filter Buttons -->
-            <div class="w-full text-left bg-slate-50 p-3 rounded-xl border border-slate-200">
-              <div class="flex items-center justify-between mb-2">
-                <p class="text-xs font-bold text-slate-700">🎨 Live Document Enhancement Filter:</p>
-                <span id="filter-active-name" class="text-2xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md">Smart Clean</span>
-              </div>
-              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                <button type="button" onclick="setFilter('enhanced_clean')" class="filter-btn active-filter py-2 px-2.5 rounded-lg border font-medium text-center shadow-sm" data-filter="enhanced_clean">
-                  <i class="fa-solid fa-wand-magic-sparkles text-emerald-500"></i> Smart Clean
-                </button>
-                <button type="button" onclick="setFilter('bw_enhanced')" class="filter-btn py-2 px-2.5 rounded-lg border font-medium text-center bg-white shadow-sm" data-filter="bw_enhanced">
-                  <i class="fa-solid fa-bolt text-amber-500"></i> B&W Contrast
-                </button>
-                <button type="button" onclick="setFilter('color_boost')" class="filter-btn py-2 px-2.5 rounded-lg border font-medium text-center bg-white shadow-sm" data-filter="color_boost">
-                  <i class="fa-solid fa-palette text-indigo-500"></i> Color Boost
-                </button>
-                <button type="button" onclick="setFilter('original')" class="filter-btn py-2 px-2.5 rounded-lg border font-medium text-center bg-white shadow-sm" data-filter="original">
-                  <i class="fa-solid fa-image text-slate-500"></i> Original
-                </button>
-              </div>
-            </div>
-
-            <!-- Action Buttons -->
-            <div class="flex gap-3 w-full pt-2">
-              <button type="button" onclick="retakePhoto()" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm border border-slate-300 flex items-center justify-center gap-1.5">
-                <i class="fa-solid fa-camera text-emerald-600"></i> Retake Photo (Camera)
+            <!-- Action Buttons Directly Under Crop Controls -->
+            <div class="flex gap-2.5 w-full pt-1">
+              <button type="button" onclick="retakePhoto()" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs sm:text-sm border border-slate-300 flex items-center justify-center gap-1.5 shadow-sm active:scale-98 transition-all">
+                <i class="fa-solid fa-camera text-emerald-600"></i> Retake Photo
               </button>
-              <button type="button" id="process-btn" onclick="processAndExtract()" class="flex-2 flex-grow py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs sm:text-sm shadow-md flex items-center justify-center gap-2">
-                <i class="fa-solid fa-bolt text-yellow-300"></i> Extract & Sync (Fast)
+              <button type="button" id="process-btn" onclick="processAndExtract()" class="flex-2 flex-grow py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 active:scale-98 transition-all">
+                <i class="fa-solid fa-bolt text-yellow-300"></i> Extract & Sync
               </button>
             </div>
           </div>
@@ -568,6 +546,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=1.6.2"></script>
+  <script src="app.js?v=1.6.3"></script>
 </body>
 </html>

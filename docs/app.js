@@ -869,7 +869,11 @@ function safeParseJson(rawText) {
 
 // --- DIRECT CLIENT TURBO EXTRACTION ENGINE (<1s LATENCY) ---
 
-async function extractDirectWithGemini(base64Image, apiKey) {
+let activeExtractionController = null;
+let activeTimeoutHandle = null;
+const MAX_EXTRACTION_TIMEOUT_SEC = 40;
+
+async function extractDirectWithGemini(base64Image, apiKey, signal = null) {
   const prompt = `Extract receipt JSON:
 {
   "merchant_name": "Store/Merchant name",
@@ -910,12 +914,16 @@ Return pure JSON only.`;
   let lastErr = null;
 
   for (const m of models) {
+    if (signal && signal.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`;
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: signal
       });
 
       if (!response.ok) {
@@ -935,6 +943,7 @@ Return pure JSON only.`;
         return parsed;
       }
     } catch (e) {
+      if (e.name === "AbortError") throw e;
       lastErr = e;
     }
   }
@@ -945,6 +954,24 @@ Return pure JSON only.`;
 // --- SCAN AND EXTRACTION WITH TARGET COMPANY WEBHOOK ---
 
 let extractionLoadingTimer = null;
+
+function cancelExtraction(reason = "cancelled") {
+  if (activeTimeoutHandle) {
+    clearTimeout(activeTimeoutHandle);
+    activeTimeoutHandle = null;
+  }
+  if (activeExtractionController) {
+    try {
+      activeExtractionController.abort(reason);
+    } catch (e) {}
+    activeExtractionController = null;
+  }
+  stopLoadingAnimation(false);
+
+  if (reason === "timeout") {
+    alert("⏱️ Extraction took longer than 40 seconds.\n\nProcessing has been stopped automatically so you don't have to wait. Please try tapping 'Extract & Sync' again or retake the receipt photo.");
+  }
+}
 
 function startLoadingAnimation() {
   const loadingCard = document.getElementById("loading-card");
@@ -974,6 +1001,12 @@ function startLoadingAnimation() {
     const elapsed = (Date.now() - startTime) / 1000;
     if (secondsEl) secondsEl.innerText = elapsed.toFixed(1) + "s";
 
+    // Enforce 40-second maximum processing ceiling
+    if (elapsed >= MAX_EXTRACTION_TIMEOUT_SEC) {
+      cancelExtraction("timeout");
+      return;
+    }
+
     if (elapsed < 0.8) {
       if (titleEl) titleEl.innerText = "Scanning Document Visuals...";
       if (descEl) descEl.innerText = "Analyzing receipt sharpness, header, & contrast...";
@@ -1000,6 +1033,10 @@ function startLoadingAnimation() {
 }
 
 function stopLoadingAnimation(success = true) {
+  if (activeTimeoutHandle) {
+    clearTimeout(activeTimeoutHandle);
+    activeTimeoutHandle = null;
+  }
   if (extractionLoadingTimer) {
     clearInterval(extractionLoadingTimer);
     extractionLoadingTimer = null;
@@ -1025,6 +1062,15 @@ async function processAndExtract() {
   const activeComp = getActiveCompany();
   const resultCard = document.getElementById("result-card");
 
+  // Setup abort controller and 40s timeout guard
+  activeExtractionController = new AbortController();
+  const signal = activeExtractionController.signal;
+
+  if (activeTimeoutHandle) clearTimeout(activeTimeoutHandle);
+  activeTimeoutHandle = setTimeout(() => {
+    cancelExtraction("timeout");
+  }, MAX_EXTRACTION_TIMEOUT_SEC * 1000);
+
   startLoadingAnimation();
 
   const executeTurbo = async (rawImageBlob) => {
@@ -1038,10 +1084,11 @@ async function processAndExtract() {
       if (userGeminiApiKey && userGeminiApiKey.trim().length > 0) {
         try {
           const b64 = await blobToBase64(compressedBlob);
-          parsedReceipt = await extractDirectWithGemini(b64, userGeminiApiKey.trim());
+          parsedReceipt = await extractDirectWithGemini(b64, userGeminiApiKey.trim(), signal);
           const tDirect = ((performance.now() - t0) / 1000).toFixed(2);
           console.log(`⚡ Direct Turbo Extraction finished in ${tDirect}s!`);
         } catch (directErr) {
+          if (directErr.name === "AbortError") throw directErr;
           console.warn("Direct turbo failed, falling back to server:", directErr);
         }
       }
@@ -1092,7 +1139,8 @@ async function processAndExtract() {
 
       const res = await fetch(`${API_BASE_URL}/api/scan-and-extract`, {
         method: "POST",
-        body: formData
+        body: formData,
+        signal: signal
       });
 
       if (!res.ok) {
@@ -1110,9 +1158,19 @@ async function processAndExtract() {
       loadReceiptsList();
 
     } catch (err) {
+      if (err.name === "AbortError") {
+        // Handled by cancelExtraction
+        return;
+      }
       stopLoadingAnimation(false);
       alert("Extraction error: " + err.message);
       console.error(err);
+    } finally {
+      if (activeTimeoutHandle) {
+        clearTimeout(activeTimeoutHandle);
+        activeTimeoutHandle = null;
+      }
+      activeExtractionController = null;
     }
   };
 
@@ -1134,6 +1192,8 @@ async function processAndExtract() {
       });
       if (croppedCanvas) {
         croppedCanvas.toBlob((blob) => {
+          croppedCanvas.width = 1;
+          croppedCanvas.height = 1;
           executeTurbo(blob || originalImageFile);
         }, "image/jpeg", 0.88);
         return;

@@ -434,6 +434,18 @@ let activeVideoStream = null;
 let currentCameraTrack = null;
 let isTorchOn = false;
 
+function updateFlashBtnUI(isOn) {
+  const flashBtn = document.getElementById("btn-camera-flash");
+  if (!flashBtn) return;
+  if (isOn) {
+    flashBtn.innerHTML = '<i class="fa-solid fa-bolt text-yellow-300"></i> <span class="text-3xs font-bold text-yellow-300">Flash ON</span>';
+    flashBtn.className = "px-2.5 py-1.5 rounded-full bg-yellow-400/20 border border-yellow-400/60 text-yellow-300 text-xs font-bold flex items-center gap-1.5 shadow-sm";
+  } else {
+    flashBtn.innerHTML = '<i class="fa-solid fa-bolt text-slate-400"></i> <span class="text-3xs font-semibold text-slate-300">Flash OFF</span>';
+    flashBtn.className = "px-2.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-slate-300 text-xs font-bold flex items-center gap-1.5 shadow-sm";
+  }
+}
+
 async function openInAppCamera() {
   const modal = document.getElementById("camera-viewfinder-modal");
   const video = document.getElementById("camera-video-stream");
@@ -461,12 +473,25 @@ async function openInAppCamera() {
     video.srcObject = activeVideoStream;
     await video.play();
 
-    // Check torch capability
+    // Check torch capability and auto-turn on flashlight by default for crisp receipts
     currentCameraTrack = activeVideoStream.getVideoTracks()[0];
     if (currentCameraTrack) {
       const capabilities = (typeof currentCameraTrack.getCapabilities === "function") ? currentCameraTrack.getCapabilities() : {};
-      if (capabilities.torch && flashBtn) {
-        flashBtn.classList.remove("hidden");
+      if (capabilities.torch) {
+        if (flashBtn) flashBtn.classList.remove("hidden");
+        try {
+          isTorchOn = true;
+          await currentCameraTrack.applyConstraints({
+            advanced: [{ torch: true }]
+          });
+          updateFlashBtnUI(true);
+        } catch (torchErr) {
+          console.warn("Could not auto-enable flashlight:", torchErr);
+          isTorchOn = false;
+          updateFlashBtnUI(false);
+        }
+      } else {
+        if (flashBtn) flashBtn.classList.add("hidden");
       }
     }
   } catch (err) {
@@ -487,6 +512,7 @@ function closeInAppCamera() {
   }
   currentCameraTrack = null;
   isTorchOn = false;
+  updateFlashBtnUI(false);
   if (modal) modal.classList.add("hidden");
 }
 
@@ -497,10 +523,7 @@ async function toggleCameraTorch() {
       await currentCameraTrack.applyConstraints({
         advanced: [{ torch: isTorchOn }]
       });
-      const flashBtn = document.getElementById("btn-camera-flash");
-      if (flashBtn) {
-        flashBtn.innerHTML = isTorchOn ? '<i class="fa-solid fa-bolt text-yellow-300"></i>' : '<i class="fa-solid fa-bolt"></i>';
-      }
+      updateFlashBtnUI(isTorchOn);
     } catch (e) {
       console.warn("Torch toggle error:", e);
     }

@@ -323,15 +323,15 @@ function revokeAllManagedObjectURLs() {
 }
 
 /**
- * Pre-downscales large raw camera captures (12MP-48MP) to max 1600px
- * immediately upon capture to prevent browser Out of Memory (OOM) crashes.
+ * Pre-downscales raw camera captures to 1280px max
+ * immediately to eliminate browser low memory tab reloads.
  * Retains 100% OCR sharpness for small receipt text and invoice numbers.
  */
-async function preprocessImageForMemorySafety(file, maxDimension = 1600) {
-  if (!file || !file.type.startsWith("image/")) return file;
+async function preprocessImageForMemorySafety(file, maxDimension = 1280) {
+  if (!file || !file.type || !file.type.startsWith("image/")) return file;
 
   return new Promise((resolve) => {
-    // 1. Hardware accelerated createImageBitmap path
+    // 1. Hardware accelerated direct downscaled decoding via createImageBitmap if supported
     if (typeof window.createImageBitmap === "function") {
       createImageBitmap(file)
         .then((bitmap) => {
@@ -370,7 +370,7 @@ async function preprocessImageForMemorySafety(file, maxDimension = 1600) {
             } else {
               resolve(file);
             }
-          }, "image/jpeg", 0.92);
+          }, "image/jpeg", 0.90);
         })
         .catch(() => {
           fallbackImagePreprocess(file, maxDimension, resolve);
@@ -417,7 +417,7 @@ function fallbackImagePreprocess(file, maxDimension, resolve) {
         } else {
           resolve(file);
         }
-      }, "image/jpeg", 0.92);
+      }, "image/jpeg", 0.90);
     };
     img.onerror = () => {
       URL.revokeObjectURL(tempUrl);
@@ -427,6 +427,109 @@ function fallbackImagePreprocess(file, maxDimension, resolve) {
   } catch (e) {
     resolve(file);
   }
+}
+
+// --- IN-APP LIVE CAMERA VIEWFINDER (ZERO MEMORY SPIKE / ZERO TAB EVICTION) ---
+let activeVideoStream = null;
+let currentCameraTrack = null;
+let isTorchOn = false;
+
+async function openInAppCamera() {
+  const modal = document.getElementById("camera-viewfinder-modal");
+  const video = document.getElementById("camera-video-stream");
+  const flashBtn = document.getElementById("btn-camera-flash");
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    triggerNativeCameraInput();
+    return;
+  }
+
+  try {
+    modal.classList.remove("hidden");
+    
+    // Request environment facing camera (back camera)
+    const constraints = {
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      },
+      audio: false
+    };
+
+    activeVideoStream = await navigator.mediaDevices.getUserMedia(constraints);
+    video.srcObject = activeVideoStream;
+    await video.play();
+
+    // Check torch capability
+    currentCameraTrack = activeVideoStream.getVideoTracks()[0];
+    if (currentCameraTrack) {
+      const capabilities = (typeof currentCameraTrack.getCapabilities === "function") ? currentCameraTrack.getCapabilities() : {};
+      if (capabilities.torch && flashBtn) {
+        flashBtn.classList.remove("hidden");
+      }
+    }
+  } catch (err) {
+    console.warn("In-app camera stream failed, falling back to native camera input:", err);
+    closeInAppCamera();
+    triggerNativeCameraInput();
+  }
+}
+
+function closeInAppCamera() {
+  const modal = document.getElementById("camera-viewfinder-modal");
+  const video = document.getElementById("camera-video-stream");
+  if (video) video.srcObject = null;
+
+  if (activeVideoStream) {
+    activeVideoStream.getTracks().forEach((track) => track.stop());
+    activeVideoStream = null;
+  }
+  currentCameraTrack = null;
+  isTorchOn = false;
+  if (modal) modal.classList.add("hidden");
+}
+
+async function toggleCameraTorch() {
+  if (currentCameraTrack) {
+    try {
+      isTorchOn = !isTorchOn;
+      await currentCameraTrack.applyConstraints({
+        advanced: [{ torch: isTorchOn }]
+      });
+      const flashBtn = document.getElementById("btn-camera-flash");
+      if (flashBtn) {
+        flashBtn.innerHTML = isTorchOn ? '<i class="fa-solid fa-bolt text-yellow-300"></i>' : '<i class="fa-solid fa-bolt"></i>';
+      }
+    } catch (e) {
+      console.warn("Torch toggle error:", e);
+    }
+  }
+}
+
+function captureInAppFrame() {
+  const video = document.getElementById("camera-video-stream");
+  if (!video || !video.videoWidth) {
+    alert("Camera is warming up. Please tap again in a moment.");
+    return;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  closeInAppCamera();
+
+  canvas.toBlob((blob) => {
+    canvas.width = 1;
+    canvas.height = 1;
+    if (blob) {
+      const file = new File([blob], `receipt_${Date.now()}.jpg`, { type: "image/jpeg" });
+      processSelectedFile(file);
+    }
+  }, "image/jpeg", 0.90);
 }
 
 // --- FILE SELECTION & CROPPER ---
@@ -457,11 +560,28 @@ function setupEventListeners() {
 }
 
 function triggerCameraInput() {
-  document.getElementById("camera-input").click();
+  // If browser supports live camera stream, use the In-App Viewfinder (zero tab reload, instant)
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.isSecureContext) {
+    openInAppCamera();
+  } else {
+    triggerNativeCameraInput();
+  }
+}
+
+function triggerNativeCameraInput() {
+  const cameraInput = document.getElementById("camera-input");
+  if (cameraInput) {
+    cameraInput.value = "";
+    cameraInput.click();
+  }
 }
 
 function triggerGalleryInput() {
-  document.getElementById("gallery-input").click();
+  const galleryInput = document.getElementById("gallery-input");
+  if (galleryInput) {
+    galleryInput.value = "";
+    galleryInput.click();
+  }
 }
 
 async function handleFileSelect(e) {

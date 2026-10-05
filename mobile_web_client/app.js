@@ -459,12 +459,12 @@ async function openInAppCamera() {
   try {
     modal.classList.remove("hidden");
     
-    // Request environment facing camera (back camera)
+    // Request environment facing camera (primary main sensor) with high-res optical clarity
     const constraints = {
       video: {
         facingMode: { ideal: "environment" },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 }
+        width: { min: 1280, ideal: 1920, max: 3840 },
+        height: { min: 720, ideal: 1080, max: 2160 }
       },
       audio: false
     };
@@ -473,25 +473,39 @@ async function openInAppCamera() {
     video.srcObject = activeVideoStream;
     await video.play();
 
-    // Check torch capability and auto-turn on flashlight by default for crisp receipts
     currentCameraTrack = activeVideoStream.getVideoTracks()[0];
     if (currentCameraTrack) {
       const capabilities = (typeof currentCameraTrack.getCapabilities === "function") ? currentCameraTrack.getCapabilities() : {};
+      
+      // Auto-lock Continuous Autofocus & Macro Focus
+      const advancedConstraints = [];
+      
+      if (capabilities.focusMode && capabilities.focusMode.includes("continuous")) {
+        advancedConstraints.push({ focusMode: "continuous" });
+      }
+      if (capabilities.exposureMode && capabilities.exposureMode.includes("continuous")) {
+        advancedConstraints.push({ exposureMode: "continuous" });
+      }
+      if (capabilities.whiteBalanceMode && capabilities.whiteBalanceMode.includes("continuous")) {
+        advancedConstraints.push({ whiteBalanceMode: "continuous" });
+      }
+
+      // Auto-turn on flashlight for maximum text contrast
       if (capabilities.torch) {
         if (flashBtn) flashBtn.classList.remove("hidden");
-        try {
-          isTorchOn = true;
-          await currentCameraTrack.applyConstraints({
-            advanced: [{ torch: true }]
-          });
-          updateFlashBtnUI(true);
-        } catch (torchErr) {
-          console.warn("Could not auto-enable flashlight:", torchErr);
-          isTorchOn = false;
-          updateFlashBtnUI(false);
-        }
+        advancedConstraints.push({ torch: true });
+        isTorchOn = true;
+        updateFlashBtnUI(true);
       } else {
         if (flashBtn) flashBtn.classList.add("hidden");
+      }
+
+      if (advancedConstraints.length > 0) {
+        try {
+          await currentCameraTrack.applyConstraints({ advanced: advancedConstraints });
+        } catch (e) {
+          console.warn("Constraint application warning:", e);
+        }
       }
     }
   } catch (err) {
@@ -530,29 +544,95 @@ async function toggleCameraTorch() {
   }
 }
 
-function captureInAppFrame() {
+async function handleViewfinderTap(e) {
+  const container = e.currentTarget;
+  const rect = container.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  // Show focus target box animation
+  const indicator = document.getElementById("camera-focus-indicator");
+  if (indicator) {
+    indicator.style.left = `${x - 32}px`;
+    indicator.style.top = `${y - 32}px`;
+    indicator.classList.remove("hidden", "opacity-0", "scale-125");
+    indicator.classList.add("opacity-100", "scale-100");
+
+    setTimeout(() => {
+      indicator.classList.add("opacity-0");
+      setTimeout(() => indicator.classList.add("hidden"), 300);
+    }, 800);
+  }
+
+  // Trigger hardware autofocus if supported
+  if (currentCameraTrack) {
+    try {
+      const capabilities = (typeof currentCameraTrack.getCapabilities === "function") ? currentCameraTrack.getCapabilities() : {};
+      if (capabilities.focusMode && capabilities.focusMode.includes("continuous")) {
+        await currentCameraTrack.applyConstraints({
+          advanced: [{ focusMode: "continuous" }]
+        });
+      }
+    } catch (err) {
+      console.warn("Tap-to-focus error:", err);
+    }
+  }
+}
+
+async function captureInAppFrame() {
   const video = document.getElementById("camera-video-stream");
+  const shutterBtn = document.getElementById("btn-shutter-snap");
+
   if (!video || !video.videoWidth) {
     alert("Camera is warming up. Please tap again in a moment.");
     return;
   }
 
-  const canvas = document.createElement("canvas");
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  // Visual shutter effect
+  if (shutterBtn) shutterBtn.classList.add("scale-90", "opacity-80");
 
-  closeInAppCamera();
+  try {
+    // 1. Try native ImageCapture API first (Hardware Sensor Still Photo with Optical Autofocus Lock)
+    if (window.ImageCapture && currentCameraTrack) {
+      try {
+        const imageCapture = new ImageCapture(currentCameraTrack);
+        const photoBlob = await imageCapture.takePhoto({
+          fillLightMode: isTorchOn ? "flash" : "auto",
+          imageHeight: 1920,
+          imageWidth: 1440
+        });
 
-  canvas.toBlob((blob) => {
-    canvas.width = 1;
-    canvas.height = 1;
-    if (blob) {
-      const file = new File([blob], `receipt_${Date.now()}.jpg`, { type: "image/jpeg" });
-      processSelectedFile(file);
+        closeInAppCamera();
+        const safeFile = await preprocessImageForMemorySafety(photoBlob, 1400);
+        processSelectedFile(safeFile);
+        return;
+      } catch (imageCaptureErr) {
+        console.warn("ImageCapture.takePhoto fallback to high-res video canvas:", imageCaptureErr);
+      }
     }
-  }, "image/jpeg", 0.90);
+
+    // 2. High-Resolution Video Canvas Grab fallback
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true, alpha: false });
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    closeInAppCamera();
+
+    canvas.toBlob(async (blob) => {
+      canvas.width = 1;
+      canvas.height = 1;
+      if (blob) {
+        const safeFile = await preprocessImageForMemorySafety(blob, 1400);
+        processSelectedFile(safeFile);
+      }
+    }, "image/jpeg", 0.94);
+
+  } catch (err) {
+    console.error("Capture error:", err);
+    closeInAppCamera();
+  }
 }
 
 // --- FILE SELECTION & CROPPER ---

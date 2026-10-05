@@ -20,7 +20,7 @@
   <!-- Cropper.js -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
-  <link rel="stylesheet" href="style.css?v=1.6.5">
+  <link rel="stylesheet" href="style.css?v=1.6.6">
   <style>
     /* Live Visual Image Filter Classes */
     .filter-preview-original { filter: none !important; }
@@ -36,11 +36,11 @@
     <div class="max-w-5xl mx-auto px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-2.5">
       <div class="flex items-center justify-between w-full sm:w-auto">
         <div class="flex items-center space-x-3">
-          <img src="logo.png?v=1.6.5" alt="AutoAccount Logo" class="w-11 h-11 rounded-2xl object-cover shadow-md bg-white p-0.5 border-2 border-white/40 shrink-0" />
+          <img src="logo.png?v=1.6.6" alt="AutoAccount Logo" class="w-11 h-11 rounded-2xl object-cover shadow-md bg-white p-0.5 border-2 border-white/40 shrink-0" />
           <div>
             <div class="flex items-center gap-1.5">
               <h1 class="font-extrabold text-base sm:text-lg leading-tight tracking-tight">AutoAccount AI</h1>
-              <span class="text-3xs font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded text-emerald-100 border border-white/20">v1.6.5</span>
+              <span class="text-3xs font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded text-emerald-100 border border-white/20">v1.6.6</span>
             </div>
             <p class="text-2xs text-emerald-100 font-medium">Smart Scanner & Expense Ledger</p>
           </div>
@@ -558,9 +558,17 @@
       </div>
     </div>
 
-    <!-- Live Video Stream with Receipt Guide Overlay -->
-    <div class="relative w-full max-w-lg flex-1 flex items-center justify-center overflow-hidden my-2 rounded-2xl bg-black">
+    <!-- Live Video Stream with Receipt Guide Overlay & Tap-to-Focus -->
+    <div onclick="handleViewfinderTap(event)" class="relative w-full max-w-lg flex-1 flex items-center justify-center overflow-hidden my-2 rounded-2xl bg-black cursor-crosshair">
       <video id="camera-video-stream" autoplay playsinline muted class="w-full h-full object-cover rounded-2xl"></video>
+      
+      <!-- Tap-To-Focus Visual Target Indicator -->
+      <div id="camera-focus-indicator" class="absolute w-16 h-16 border-2 border-yellow-400 rounded-xl pointer-events-none hidden transition-all duration-200 scale-125 opacity-0 shadow-lg shadow-yellow-400/50">
+        <div class="absolute inset-0 flex items-center justify-center">
+          <span class="w-1.5 h-1.5 rounded-full bg-yellow-400"></span>
+        </div>
+      </div>
+
       <!-- Receipt Alignment Framing Box -->
       <div class="absolute inset-4 sm:inset-8 border-2 border-emerald-400/80 rounded-2xl pointer-events-none flex flex-col justify-between p-3 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]">
         <div class="flex justify-between items-start text-emerald-400 text-xs font-bold">
@@ -569,7 +577,7 @@
         </div>
         <div class="text-center">
           <span class="px-3 py-1 rounded-full bg-black/60 text-white text-2xs font-semibold backdrop-blur-sm">
-            Hold steady & tap shutter button
+            Tap screen to focus • Tap shutter to snap
           </span>
         </div>
         <div class="flex justify-between items-end text-emerald-400 text-xs font-bold">
@@ -586,8 +594,8 @@
         <span class="text-3xs font-semibold">Gallery</span>
       </button>
       
-      <!-- Big Shutter Snap Button -->
-      <button type="button" onclick="captureInAppFrame()" class="w-20 h-20 rounded-full border-4 border-white p-1 flex items-center justify-center bg-white/20 active:scale-95 transition-all shadow-2xl">
+      <!-- Big Shutter Snap Button with Hardware Still Capture -->
+      <button type="button" id="btn-shutter-snap" onclick="captureInAppFrame()" class="w-20 h-20 rounded-full border-4 border-white p-1 flex items-center justify-center bg-white/20 active:scale-95 transition-all shadow-2xl">
         <div class="w-full h-full rounded-full bg-emerald-500 hover:bg-emerald-400 flex items-center justify-center text-white text-2xl shadow-inner">
           <i class="fa-solid fa-camera"></i>
         </div>
@@ -600,6 +608,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=1.6.5"></script>
+  <script src="app.js?v=1.6.6"></script>
 </body>
 </html>

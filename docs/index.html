@@ -549,9 +549,23 @@
         <span class="text-xs font-bold tracking-wider uppercase">Live Document Scanner</span>
       </div>
       <div class="flex items-center gap-2">
+        <!-- 1x / 2x Optical Macro Zoom Switcher -->
+        <button type="button" id="btn-camera-zoom" onclick="toggleCameraZoom()" class="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-bold flex items-center gap-1 shadow-sm" title="Toggle 1x/2x Macro Zoom">
+          <i class="fa-solid fa-magnifying-glass-plus text-sky-400"></i>
+          <span id="camera-zoom-text">1.0x</span>
+        </button>
+
+        <!-- Switch Lens (Main vs Ultra-Wide / Telephoto) -->
+        <button type="button" id="btn-camera-switch-lens" onclick="switchCameraLens()" class="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-sm" title="Switch Rear Lens (Main / Telephoto / Wide)">
+          <i class="fa-solid fa-camera-rotate"></i>
+        </button>
+
+        <!-- Flashlight Torch -->
         <button type="button" id="btn-camera-flash" onclick="toggleCameraTorch()" class="hidden p-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-sm" title="Toggle Flashlight">
           <i class="fa-solid fa-bolt"></i>
         </button>
+
+        <!-- Close Viewfinder -->
         <button type="button" onclick="closeInAppCamera()" class="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-sm">
           <i class="fa-solid fa-xmark text-lg"></i>
         </button>

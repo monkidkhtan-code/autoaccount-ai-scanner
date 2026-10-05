@@ -433,6 +433,10 @@ function fallbackImagePreprocess(file, maxDimension, resolve) {
 let activeVideoStream = null;
 let currentCameraTrack = null;
 let isTorchOn = false;
+let availableRearCameraIds = [];
+let currentRearCameraIndex = 0;
+let currentZoomLevel = 1.0;
+let hasHardwareZoom = false;
 
 function updateFlashBtnUI(isOn) {
   const flashBtn = document.getElementById("btn-camera-flash");
@@ -446,30 +450,68 @@ function updateFlashBtnUI(isOn) {
   }
 }
 
-async function openInAppCamera() {
+async function detectRearCameras() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoInputs = devices.filter(d => d.kind === "videoinput");
+    const rearCameras = videoInputs.filter(d => {
+      const label = (d.label || "").toLowerCase();
+      return !label.includes("front") && !label.includes("user") && !label.includes("selfie");
+    });
+    
+    availableRearCameraIds = rearCameras.map(d => d.deviceId);
+    const switchLensBtn = document.getElementById("btn-camera-switch-lens");
+    if (switchLensBtn) {
+      if (availableRearCameraIds.length > 1) {
+        switchLensBtn.classList.remove("hidden");
+      } else {
+        switchLensBtn.classList.add("hidden");
+      }
+    }
+  } catch (e) {
+    console.warn("Device enumeration warning:", e);
+  }
+}
+
+async function openInAppCamera(preferredDeviceId = null) {
   const modal = document.getElementById("camera-viewfinder-modal");
   const video = document.getElementById("camera-video-stream");
   const flashBtn = document.getElementById("btn-camera-flash");
+  const zoomText = document.getElementById("camera-zoom-text");
 
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     triggerNativeCameraInput();
     return;
   }
 
+  // Stop previous stream if switching lenses
+  if (activeVideoStream) {
+    activeVideoStream.getTracks().forEach((track) => track.stop());
+    activeVideoStream = null;
+  }
+
   try {
     modal.classList.remove("hidden");
+    await detectRearCameras();
     
     // Request environment facing camera (primary main sensor) with high-res optical clarity
-    const constraints = {
-      video: {
-        facingMode: { ideal: "environment" },
-        width: { min: 1280, ideal: 1920, max: 3840 },
-        height: { min: 720, ideal: 1080, max: 2160 }
-      },
-      audio: false
+    const videoConstraints = {
+      width: { min: 1280, ideal: 1920, max: 3840 },
+      height: { min: 720, ideal: 1080, max: 2160 }
     };
 
-    activeVideoStream = await navigator.mediaDevices.getUserMedia(constraints);
+    if (preferredDeviceId) {
+      videoConstraints.deviceId = { exact: preferredDeviceId };
+    } else {
+      videoConstraints.facingMode = { ideal: "environment" };
+    }
+
+    activeVideoStream = await navigator.mediaDevices.getUserMedia({
+      video: videoConstraints,
+      audio: false
+    });
+
     video.srcObject = activeVideoStream;
     await video.play();
 
@@ -490,6 +532,13 @@ async function openInAppCamera() {
         advancedConstraints.push({ whiteBalanceMode: "continuous" });
       }
 
+      // Check hardware zoom capability
+      hasHardwareZoom = Boolean(capabilities.zoom);
+      if (capabilities.zoom && currentZoomLevel > 1.0) {
+        const targetZoom = Math.min(capabilities.zoom.max || 2.0, Math.max(capabilities.zoom.min || 1.0, currentZoomLevel));
+        advancedConstraints.push({ zoom: targetZoom });
+      }
+
       // Auto-turn on flashlight for maximum text contrast
       if (capabilities.torch) {
         if (flashBtn) flashBtn.classList.remove("hidden");
@@ -508,6 +557,8 @@ async function openInAppCamera() {
         }
       }
     }
+
+    if (zoomText) zoomText.innerText = `${currentZoomLevel.toFixed(1)}x`;
   } catch (err) {
     console.warn("In-app camera stream failed, falling back to native camera input:", err);
     closeInAppCamera();
@@ -518,7 +569,10 @@ async function openInAppCamera() {
 function closeInAppCamera() {
   const modal = document.getElementById("camera-viewfinder-modal");
   const video = document.getElementById("camera-video-stream");
-  if (video) video.srcObject = null;
+  if (video) {
+    video.srcObject = null;
+    video.style.transform = "none";
+  }
 
   if (activeVideoStream) {
     activeVideoStream.getTracks().forEach((track) => track.stop());
@@ -526,8 +580,61 @@ function closeInAppCamera() {
   }
   currentCameraTrack = null;
   isTorchOn = false;
+  currentZoomLevel = 1.0;
   updateFlashBtnUI(false);
   if (modal) modal.classList.add("hidden");
+}
+
+async function switchCameraLens() {
+  if (availableRearCameraIds.length <= 1) {
+    await detectRearCameras();
+  }
+  if (availableRearCameraIds.length > 1) {
+    currentRearCameraIndex = (currentRearCameraIndex + 1) % availableRearCameraIds.length;
+    await openInAppCamera(availableRearCameraIds[currentRearCameraIndex]);
+  } else {
+    toggleCameraZoom();
+  }
+}
+
+async function toggleCameraZoom() {
+  if (currentZoomLevel <= 1.0) {
+    currentZoomLevel = 2.0;
+  } else {
+    currentZoomLevel = 1.0;
+  }
+
+  const zoomText = document.getElementById("camera-zoom-text");
+  if (zoomText) zoomText.innerText = `${currentZoomLevel.toFixed(1)}x`;
+
+  const video = document.getElementById("camera-video-stream");
+
+  if (currentCameraTrack) {
+    const capabilities = (typeof currentCameraTrack.getCapabilities === "function") ? currentCameraTrack.getCapabilities() : {};
+    if (capabilities.zoom) {
+      const targetZoom = (currentZoomLevel > 1.0) 
+        ? Math.min(capabilities.zoom.max || 2.0, Math.max(capabilities.zoom.min || 1.0, 2.0))
+        : (capabilities.zoom.min || 1.0);
+      try {
+        await currentCameraTrack.applyConstraints({
+          advanced: [{ zoom: targetZoom }]
+        });
+        hasHardwareZoom = true;
+      } catch (e) {
+        console.warn("Hardware zoom error:", e);
+      }
+    }
+  }
+
+  // Visual optical framing assist
+  if (video) {
+    if (currentZoomLevel > 1.0 && !hasHardwareZoom) {
+      video.style.transform = "scale(1.4)";
+      video.style.transformOrigin = "center center";
+    } else {
+      video.style.transform = "none";
+    }
+  }
 }
 
 async function toggleCameraTorch() {
@@ -612,11 +719,27 @@ async function captureInAppFrame() {
     }
 
     // 2. High-Resolution Video Canvas Grab fallback
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true, alpha: false });
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    if (currentZoomLevel > 1.0 && !hasHardwareZoom) {
+      // Crop centered 72% region for crisp macro telephoto detail without wide-angle blur
+      const cropW = Math.round(vw * 0.72);
+      const cropH = Math.round(vh * 0.72);
+      const startX = Math.round((vw - cropW) / 2);
+      const startY = Math.round((vh - cropH) / 2);
+
+      canvas.width = cropW;
+      canvas.height = cropH;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true, alpha: false });
+      ctx.drawImage(video, startX, startY, cropW, cropH, 0, 0, cropW, cropH);
+    } else {
+      canvas.width = vw;
+      canvas.height = vh;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true, alpha: false });
+      ctx.drawImage(video, 0, 0, vw, vh);
+    }
 
     closeInAppCamera();
 

@@ -194,7 +194,7 @@ class ImageProcessor:
                 output_image = sharpener.enhance(1.3)
 
             buffer = io.BytesIO()
-            output_image.save(buffer, format="JPEG", quality=95, optimize=True)
+            output_image.save(buffer, format="JPEG", quality=95, optimize=True, subsampling=0)
             result = buffer.getvalue()
             buffer.close()
             return result

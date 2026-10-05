@@ -323,11 +323,11 @@ function revokeAllManagedObjectURLs() {
 }
 
 /**
- * Pre-downscales raw camera captures to 1280px max
- * immediately to eliminate browser low memory tab reloads.
- * Retains 100% OCR sharpness for small receipt text and invoice numbers.
+ * Pre-downscales raw camera captures if excessive to 2000px max
+ * to maintain browser stability while preserving razor-sharp OCR & archival clarity.
+ * Retains 100% optical clarity for small receipt text, invoice numbers, and Drive backup.
  */
-async function preprocessImageForMemorySafety(file, maxDimension = 1280) {
+async function preprocessImageForMemorySafety(file, maxDimension = 2000) {
   if (!file || !file.type || !file.type.startsWith("image/")) return file;
 
   return new Promise((resolve) => {
@@ -370,7 +370,7 @@ async function preprocessImageForMemorySafety(file, maxDimension = 1280) {
             } else {
               resolve(file);
             }
-          }, "image/jpeg", 0.90);
+          }, "image/jpeg", 0.94);
         })
         .catch(() => {
           fallbackImagePreprocess(file, maxDimension, resolve);
@@ -417,7 +417,7 @@ function fallbackImagePreprocess(file, maxDimension, resolve) {
         } else {
           resolve(file);
         }
-      }, "image/jpeg", 0.90);
+      }, "image/jpeg", 0.94);
     };
     img.onerror = () => {
       URL.revokeObjectURL(tempUrl);
@@ -598,12 +598,12 @@ async function captureInAppFrame() {
         const imageCapture = new ImageCapture(currentCameraTrack);
         const photoBlob = await imageCapture.takePhoto({
           fillLightMode: isTorchOn ? "flash" : "auto",
-          imageHeight: 1920,
-          imageWidth: 1440
+          imageHeight: 2560,
+          imageWidth: 1920
         });
 
         closeInAppCamera();
-        const safeFile = await preprocessImageForMemorySafety(photoBlob, 1400);
+        const safeFile = await preprocessImageForMemorySafety(photoBlob, 2000);
         processSelectedFile(safeFile);
         return;
       } catch (imageCaptureErr) {
@@ -624,10 +624,10 @@ async function captureInAppFrame() {
       canvas.width = 1;
       canvas.height = 1;
       if (blob) {
-        const safeFile = await preprocessImageForMemorySafety(blob, 1400);
+        const safeFile = await preprocessImageForMemorySafety(blob, 2000);
         processSelectedFile(safeFile);
       }
-    }, "image/jpeg", 0.94);
+    }, "image/jpeg", 0.95);
 
   } catch (err) {
     console.error("Capture error:", err);
@@ -777,8 +777,8 @@ function applyAndSaveCrop() {
 
   try {
     const croppedCanvas = cropperInstance.getCroppedCanvas({
-      maxWidth: 1200,
-      maxHeight: 1800,
+      maxWidth: 2000,
+      maxHeight: 2800,
       fillColor: '#ffffff',
       imageSmoothingEnabled: true,
       imageSmoothingQuality: 'high',
@@ -810,7 +810,7 @@ function applyAndSaveCrop() {
       document.getElementById("crop-controls-bar").classList.add("hidden");
       applyLiveImageFilter();
 
-    }, "image/jpeg", 0.92);
+    }, "image/jpeg", 0.95);
   } catch (err) {
     console.error("Crop error:", err);
     alert("Error cropping image: " + err.message);
@@ -983,9 +983,8 @@ async function loadSampleReceipt() {
   }, "image/jpeg");
 }
 
-// --- FAST CLIENT-SIDE IMAGE COMPRESSION ---
-
-async function compressImageForUpload(blobOrFile, maxDimension = 900, quality = 0.80) {
+// --- FAST CLIENT-SIDE IMAGE COMPRESSION (HIGH-FIDELITY ARCHIVAL) ---
+async function compressImageForUpload(blobOrFile, maxDimension = 2000, quality = 0.95) {
   return new Promise((resolve) => {
     try {
       const img = new Image();
@@ -994,6 +993,11 @@ async function compressImageForUpload(blobOrFile, maxDimension = 900, quality = 
         URL.revokeObjectURL(tempUrl);
         let width = img.width;
         let height = img.height;
+        if (width <= maxDimension && height <= maxDimension && quality >= 0.94) {
+          // If already within dimensions, avoid generation-loss re-encoding
+          resolve(blobOrFile);
+          return;
+        }
         if (width > maxDimension || height > maxDimension) {
           if (width > height) {
             height = Math.round((height * maxDimension) / width);
@@ -1006,7 +1010,7 @@ async function compressImageForUpload(blobOrFile, maxDimension = 900, quality = 
         const canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
-        const ctx = canvas.getContext("2d");
+        const ctx = canvas.getContext("2d", { alpha: false });
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
@@ -1299,8 +1303,8 @@ async function processAndExtract() {
   const executeTurbo = async (rawImageBlob) => {
     const t0 = performance.now();
     try {
-      // 1. High-clarity compression preserves small fonts & thermal print
-      const compressedBlob = await compressImageForUpload(rawImageBlob, 1500, 0.92);
+      // 1. High-clarity compression preserves small fonts, thermal print & Google Drive archival quality
+      const compressedBlob = await compressImageForUpload(rawImageBlob, 2000, 0.95);
       let parsedReceipt = null;
 
       // 2. Direct Turbo Call if API key is in browser
@@ -1407,8 +1411,8 @@ async function processAndExtract() {
   if (cropperInstance) {
     try {
       const croppedCanvas = cropperInstance.getCroppedCanvas({
-        maxWidth: 1000,
-        maxHeight: 1500,
+        maxWidth: 2000,
+        maxHeight: 2800,
         fillColor: '#ffffff',
         imageSmoothingEnabled: true,
         imageSmoothingQuality: 'high',
@@ -1418,7 +1422,7 @@ async function processAndExtract() {
           croppedCanvas.width = 1;
           croppedCanvas.height = 1;
           executeTurbo(blob || originalImageFile);
-        }, "image/jpeg", 0.88);
+        }, "image/jpeg", 0.95);
         return;
       }
     } catch (e) {

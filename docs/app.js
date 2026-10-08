@@ -1279,13 +1279,15 @@ Return pure JSON only.`;
     }
   };
 
-  // Instant priority models: standard Google AI Studio models with <1s latency
+  // Original ultra-fast, high-sensitivity Flash-Lite OCR vision models
   const models = [
+    "gemini-flash-lite-latest",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
     "gemini-2.5-flash",
-    "gemini-1.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash-8b",
-    "gemini-2.5-pro"
+    "gemini-1.5-flash"
   ];
   let lastErr = null;
 
@@ -1952,7 +1954,7 @@ async function triggerPWAInstall() {
 // Register PWA Service Worker with immediate auto-update check
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=1.7.2").then(
+    navigator.serviceWorker.register("service-worker.js?v=1.7.3").then(
       (reg) => {
         try {
           reg.update();

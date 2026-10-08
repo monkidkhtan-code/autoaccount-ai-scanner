@@ -435,7 +435,7 @@ let currentCameraTrack = null;
 let isTorchOn = false;
 let availableRearCameraIds = [];
 let currentRearCameraIndex = 0;
-let currentZoomLevel = 1.0;
+let currentZoomLevel = 2.0;
 let hasHardwareZoom = false;
 
 function updateFlashBtnUI(isOn) {
@@ -532,7 +532,7 @@ async function openInAppCamera(preferredDeviceId = null) {
         advancedConstraints.push({ whiteBalanceMode: "continuous" });
       }
 
-      // Check hardware zoom capability
+      // Check and apply default 2.0x macro zoom
       hasHardwareZoom = Boolean(capabilities.zoom);
       if (capabilities.zoom && currentZoomLevel > 1.0) {
         const targetZoom = Math.min(capabilities.zoom.max || 2.0, Math.max(capabilities.zoom.min || 1.0, currentZoomLevel));
@@ -558,6 +558,16 @@ async function openInAppCamera(preferredDeviceId = null) {
       }
     }
 
+    // Apply 2.0x visual zoom assist if hardware zoom is absent
+    if (video) {
+      if (currentZoomLevel > 1.0 && !hasHardwareZoom) {
+        video.style.transform = "scale(1.4)";
+        video.style.transformOrigin = "center center";
+      } else {
+        video.style.transform = "none";
+      }
+    }
+
     if (zoomText) zoomText.innerText = `${currentZoomLevel.toFixed(1)}x`;
   } catch (err) {
     console.warn("In-app camera stream failed, falling back to native camera input:", err);
@@ -580,7 +590,7 @@ function closeInAppCamera() {
   }
   currentCameraTrack = null;
   isTorchOn = false;
-  currentZoomLevel = 1.0;
+  currentZoomLevel = 2.0;
   updateFlashBtnUI(false);
   if (modal) modal.classList.add("hidden");
 }

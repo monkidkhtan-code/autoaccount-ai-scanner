@@ -1233,6 +1233,55 @@ let activeExtractionController = null;
 let activeTimeoutHandle = null;
 const MAX_EXTRACTION_TIMEOUT_SEC = 40;
 
+let discoveredGeminiModels = null;
+
+async function getAvailableGeminiModels(apiKey, signal = null) {
+  if (discoveredGeminiModels && discoveredGeminiModels.length > 0) {
+    return discoveredGeminiModels;
+  }
+
+  const staticFallbacks = [
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.8-flash",
+    "gemini-2.5-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite"
+  ];
+
+  try {
+    const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+    const res = await fetch(listUrl, { signal });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.models && Array.isArray(data.models)) {
+        const available = data.models
+          .filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes("generateContent"))
+          .map(m => m.name.replace("models/", ""))
+          .filter(name => !name.includes("embedding") && !name.includes("aqa"));
+
+        // Sort Flash models first for maximum speed
+        const flashFirst = available.sort((a, b) => {
+          const aFlash = a.includes("flash") ? 1 : 0;
+          const bFlash = b.includes("flash") ? 1 : 0;
+          return bFlash - aFlash;
+        });
+
+        if (flashFirst.length > 0) {
+          discoveredGeminiModels = flashFirst;
+          return discoveredGeminiModels;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Dynamic model discovery fallback:", e);
+  }
+
+  return staticFallbacks;
+}
+
 async function extractDirectWithGemini(base64Image, apiKey, signal = null) {
   const prompt = `Extract receipt JSON:
 {
@@ -1264,13 +1313,7 @@ Return pure JSON only.`;
     }
   };
 
-  const models = [
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash-8b"
-  ];
+  const models = await getAvailableGeminiModels(apiKey, signal);
   let lastErr = null;
 
   for (const m of models) {
@@ -1287,7 +1330,9 @@ Return pure JSON only.`;
       });
 
       if (!response.ok) {
-        lastErr = new Error(`Model ${m} returned HTTP ${response.status}`);
+        const errJson = await response.json().catch(() => null);
+        const errMsg = errJson && errJson.error ? errJson.error.message : `HTTP ${response.status}`;
+        lastErr = new Error(`Model ${m}: ${errMsg}`);
         continue;
       }
 
@@ -1911,7 +1956,7 @@ async function triggerPWAInstall() {
 // Register PWA Service Worker with immediate auto-update check
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=1.7.0").then(
+    navigator.serviceWorker.register("service-worker.js?v=1.7.1").then(
       (reg) => {
         try {
           reg.update();

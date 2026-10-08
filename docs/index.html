@@ -531,7 +531,17 @@
       </p>
       <div>
         <label class="block text-2xs font-bold text-slate-600 uppercase tracking-wider mb-1">Gemini API Key</label>
-        <input type="password" id="input-gemini-key" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono" />
+        <div class="relative">
+          <input type="password" id="input-gemini-key" placeholder="AIzaSy..." class="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono pr-10" />
+          <button type="button" onclick="toggleApiKeyVisibility()" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
+            <i id="api-key-eye-icon" class="fa-solid fa-eye"></i>
+          </button>
+        </div>
+        <div class="mt-2 flex items-center justify-between">
+          <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="text-2xs text-sky-600 hover:text-sky-700 font-bold flex items-center gap-1">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Get Free API Key at Google AI Studio
+          </a>
+        </div>
       </div>
       <div class="flex gap-2 pt-2">
         <button onclick="closeApiKeyModal()" class="flex-1 py-2 rounded-xl text-xs font-semibold border border-slate-300 text-slate-700 hover:bg-slate-100">Cancel</button>

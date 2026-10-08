@@ -283,8 +283,23 @@ function closeApiKeyModal() {
   document.getElementById("api-key-modal").classList.add("hidden");
 }
 
+function toggleApiKeyVisibility() {
+  const input = document.getElementById("input-gemini-key");
+  const eyeIcon = document.getElementById("api-key-eye-icon");
+  if (!input) return;
+  if (input.type === "password") {
+    input.type = "text";
+    if (eyeIcon) eyeIcon.className = "fa-solid fa-eye-slash text-slate-400";
+  } else {
+    input.type = "password";
+    if (eyeIcon) eyeIcon.className = "fa-solid fa-eye text-slate-400";
+  }
+}
+
 async function saveApiKey() {
-  const key = document.getElementById("input-gemini-key").value.trim();
+  const rawKey = document.getElementById("input-gemini-key").value;
+  // Clean whitespace, newlines, and accidental quotes
+  const key = (rawKey || "").trim().replace(/^["']|["']$/g, "").replace(/[\r\n\t ]+/g, "");
   userGeminiApiKey = key;
   localStorage.setItem("gemini_api_key", key);
 
@@ -1553,6 +1568,20 @@ async function processAndExtract() {
       }
 
       const data = await res.json();
+      
+      // If server returned an API key error
+      if (data.receipt && (data.receipt.merchant_name === "AI Extraction Error" || data.receipt.merchant_name === "[API Key Missing]")) {
+        stopLoadingAnimation(false);
+        const detail = data.receipt.item_description || "Invalid or missing API key.";
+        if (detail.includes("401") || detail.includes("API key not valid") || detail.includes("API Key Missing")) {
+          alert("🔑 Gemini API Key Error (401 Unauthorized):\n\nYour Gemini API Key is invalid, expired, or has a typo.\n\nPlease enter a valid API key from Google AI Studio (aistudio.google.com).");
+          openApiKeyModal();
+        } else {
+          alert(`Extraction error:\n${detail}`);
+        }
+        return;
+      }
+
       currentReceiptData = data.receipt;
       populateReviewForm(currentReceiptData);
 
@@ -1564,11 +1593,16 @@ async function processAndExtract() {
 
     } catch (err) {
       if (err.name === "AbortError") {
-        // Handled by cancelExtraction
         return;
       }
       stopLoadingAnimation(false);
-      alert("Extraction error: " + err.message);
+      const msg = err.message || "";
+      if (msg.includes("401") || msg.includes("API key not valid")) {
+        alert("🔑 Gemini API Key Error (401 Unauthorized):\n\nYour Gemini API Key is invalid or expired.\n\nPlease tap 'Key' at the top right to paste a valid Gemini API Key from Google AI Studio.");
+        openApiKeyModal();
+      } else {
+        alert("Extraction error: " + msg);
+      }
       console.error(err);
     } finally {
       if (activeTimeoutHandle) {

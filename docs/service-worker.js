@@ -1,10 +1,10 @@
-const CACHE_NAME = 'autoaccount-ai-v1.6.9';
+const CACHE_NAME = 'autoaccount-ai-v1.7.0';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
-  './style.css?v=1.6.9',
-  './app.js?v=1.6.9',
-  './logo.png?v=1.6.9',
+  './style.css?v=1.7.0',
+  './app.js?v=1.7.0',
+  './logo.png?v=1.7.0',
   './icon-192.png',
   './icon-512.png',
   './apple-touch-icon.png',

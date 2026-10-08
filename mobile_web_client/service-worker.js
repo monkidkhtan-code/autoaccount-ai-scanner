@@ -1,10 +1,10 @@
-const CACHE_NAME = 'autoaccount-ai-v1.5.8';
+const CACHE_NAME = 'autoaccount-ai-v1.6.9';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
-  './style.css',
-  './app.js',
-  './logo.png',
+  './style.css?v=1.6.9',
+  './app.js?v=1.6.9',
+  './logo.png?v=1.6.9',
   './icon-192.png',
   './icon-512.png',
   './apple-touch-icon.png',
@@ -13,12 +13,12 @@ const ASSETS_TO_CACHE = [
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS_TO_CACHE).catch(() => {});
     })
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
@@ -36,10 +36,19 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Network-first fetch strategy to guarantee instant updates on mobile
 self.addEventListener('fetch', (event) => {
   if (event.request.method === 'GET' && event.request.url.startsWith(self.location.origin)) {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
     );
   }
 });

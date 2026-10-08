@@ -1908,11 +1908,16 @@ async function triggerPWAInstall() {
   }
 }
 
-// Register PWA Service Worker
+// Register PWA Service Worker with immediate auto-update check
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js").then(
-      (reg) => console.log("PWA Service Worker registered with scope:", reg.scope),
+    navigator.serviceWorker.register("service-worker.js?v=1.6.9").then(
+      (reg) => {
+        try {
+          reg.update();
+        } catch (e) {}
+        console.log("PWA Service Worker registered with scope:", reg.scope);
+      },
       (err) => console.warn("PWA Service Worker registration failed:", err)
     );
   });

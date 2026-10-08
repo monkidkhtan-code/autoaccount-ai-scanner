@@ -1923,3 +1923,25 @@ if ("serviceWorker" in navigator) {
   });
 }
 
+// 1-Tap Cache Clear & Force Refresh
+async function forceAppUpdate() {
+  try {
+    if ("serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const reg of registrations) {
+        await reg.unregister();
+      }
+    }
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      for (const key of keys) {
+        await caches.delete(key);
+      }
+    }
+  } catch (e) {
+    console.warn("Cache reset error:", e);
+  }
+  const cleanUrl = window.location.href.split("?")[0] + "?t=" + Date.now();
+  window.location.replace(cleanUrl);
+}
+

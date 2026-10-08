@@ -41,12 +41,18 @@
             <div class="flex items-center gap-1.5">
               <h1 class="font-extrabold text-base sm:text-lg leading-tight tracking-tight">AutoAccount AI</h1>
               <span class="text-3xs font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded text-emerald-100 border border-white/20">v1.6.9</span>
+              <button type="button" onclick="forceAppUpdate()" class="px-1.5 py-0.5 rounded text-3xs font-bold bg-white/10 hover:bg-white/25 text-emerald-200 border border-white/20 flex items-center gap-1 cursor-pointer shadow-sm active:scale-95 transition-all" title="Force Refresh Latest Version">
+                <i class="fa-solid fa-arrows-rotate text-emerald-300"></i> Update
+              </button>
             </div>
             <p class="text-2xs text-emerald-100 font-medium">Smart Scanner & Expense Ledger</p>
           </div>
         </div>
 
         <div class="sm:hidden flex items-center gap-1.5">
+          <button type="button" onclick="forceAppUpdate()" class="px-2 py-1 rounded-full text-2xs font-bold bg-white/15 hover:bg-white/25 text-emerald-100 border border-white/20 flex items-center gap-1">
+            <i class="fa-solid fa-arrows-rotate text-emerald-300"></i>
+          </button>
           <button type="button" id="btn-pwa-install-mobile" onclick="triggerPWAInstall()" class="hidden px-2.5 py-1 rounded-full text-2xs font-bold bg-amber-400 text-slate-900 shadow-sm animate-pulse flex items-center gap-1">
             <i class="fa-solid fa-download"></i> Install
           </button>
